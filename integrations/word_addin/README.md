@@ -2,10 +2,41 @@
 
 This add-in provides a 3-tier bridge between Microsoft Word and the GalloDoc ecosystem.
 
-## Setup
-1. `npm install`
-2. `npm start` (Runs a local dev server for the task pane)
-3. Sideload the `manifest.xml` in Microsoft Word.
+## Development & Build
+
+### Prerequisites
+- Node.js and npm
+- Microsoft Word (Desktop or Online)
+
+### Installation
+```bash
+cd integrations/word_addin
+npm install
+```
+
+### Build
+To generate a production-ready build in the `dist` folder:
+```bash
+npm run build
+```
+
+### Local Development
+To start the dev server over HTTPS (required by Office):
+```bash
+npm start
+```
+By default, the server runs at `https://localhost:3000`.
+
+### Sideloading in Word
+1. Trust the local development certificate if prompted.
+2. Open Word.
+3. Go to `Insert` -> `My Add-ins`.
+4. Select `Upload My Add-in` and choose the `manifest.xml` file from this directory.
+
+## Troubleshooting
+- **Cannot resolve './src'**: This typically happened before `webpack.config.js` was added. Ensure you are running commands from the `integrations/word_addin` directory.
+- **HTTPS Issues**: Office add-ins require HTTPS. `npm start` uses a self-signed certificate. You may need to visit `https://localhost:3000/taskpane.html` in your browser and choose "Advanced" -> "Proceed anyway" to trust the certificate before it works inside Word.
+- **OfficeRuntime.storage missing**: Ensure you are using a supported version of Office (2019+ or Microsoft 365).
 
 ## Persistent Connection Settings
 The Word Add-in features a persistent connection settings panel.
@@ -57,7 +88,4 @@ Connected documents store a minimal metadata manifest within the Word document's
 - **Local Mode**: Process documents without an account. Zero data upload. Does not write cloud manifests.
 - **Connected Modes**: Requires a token. Syncs documents as immutable versions to the cloud tenant. Writes/updates embedded manifests.
 
-## Development
-The task pane is built with TypeScript and styles with Tailwind-like utility patterns.
-- `src/taskpane/`: Main UI logic.
-- `src/lib/`: Core logic for GalloDoc generation and API client.
+
