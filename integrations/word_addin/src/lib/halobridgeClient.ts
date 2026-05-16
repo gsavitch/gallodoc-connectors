@@ -3,39 +3,42 @@ import { ConnectorMode } from './modeConfig';
 
 export interface ConnectionInfo {
   baseUrl: string;
-  user: {
+  user?: {
     username: string;
     display_name: string;
   };
-  tenant: {
+  tenant?: {
     name: string;
   };
 }
 
 export class HaloBridgeClient {
-  private apiUrl: string | null = null;
+  private baseUrl: string | null = null;
   private token: string | null = null;
-  private connection: ConnectionInfo | null = null;
 
-  constructor() {
-    this.restoreSession();
+  constructor() {}
+
+  setConfiguration(baseUrl: string, token: string | null) {
+    this.baseUrl = baseUrl.replace(/\/$/, "");
+    this.token = token;
   }
 
-  private restoreSession() {
-    const savedToken = localStorage.getItem('hb_token');
-    const savedUrl = localStorage.getItem('hb_url');
-    const savedConn = localStorage.getItem('hb_connection');
-
-    if (savedToken && savedUrl && savedConn) {
-      this.token = savedToken;
-      this.apiUrl = savedUrl;
-      this.connection = JSON.parse(savedConn);
+  async testConnection(baseUrl: string): Promise<{ status: "ok" | "unauthorized" | "unreachable", message: string }> {
+    const cleanUrl = baseUrl.replace(/\/$/, "");
+    try {
+      const response = await axios.get(`${cleanUrl}/api/health/`, { timeout: 5000 });
+      if (response.status === 200) return { status: "ok", message: "Server Reachable" };
+      return { status: "unreachable", message: `Server returned ${response.status}` };
+    } catch (error: any) {
+      if (error.response?.status === 401) return { status: "unauthorized", message: "Unauthorized" };
+      return { status: "unreachable", message: "Network error or invalid URL" };
     }
   }
 
-  async login(baseUrl: string, username: string, password: string): Promise<ConnectionInfo> {
+  async login(baseUrl: string, username: string, password: string) {
+    const cleanUrl = baseUrl.replace(/\/$/, "");
     try {
-      const response = await axios.post(`${baseUrl}/api/word/auth/login/`, {
+      const response = await axios.post(`${cleanUrl}/api/word/auth/login/`, {
         username,
         password
       });
@@ -43,39 +46,17 @@ export class HaloBridgeClient {
       const { access_token, user, tenant } = response.data;
       
       this.token = access_token;
-      this.apiUrl = baseUrl;
-      this.connection = {
-        baseUrl,
+      this.baseUrl = cleanUrl;
+
+      return {
+        token: access_token,
         user: { username: user.username, display_name: user.display_name },
         tenant: { name: tenant.name }
       };
-
-      localStorage.setItem('hb_token', this.token!);
-      localStorage.setItem('hb_url', this.apiUrl!);
-      localStorage.setItem('hb_connection', JSON.stringify(this.connection));
-
-      return this.connection;
     } catch (error: any) {
       console.error('Login Error:', error.response?.data || error.message);
-      throw new Error(error.response?.data?.error || "Connection failed");
+      throw new Error(error.response?.data?.message || error.response?.data?.error || "Login failed");
     }
-  }
-
-  logout() {
-    this.token = null;
-    this.apiUrl = null;
-    this.connection = null;
-    localStorage.removeItem('hb_token');
-    localStorage.removeItem('hb_url');
-    localStorage.removeItem('hb_connection');
-  }
-
-  getConnection(): ConnectionInfo | null {
-    return this.connection;
-  }
-
-  isLoggedIn(): boolean {
-    return !!this.token;
   }
 
   async saveWordDocument(payload: {
@@ -85,22 +66,20 @@ export class HaloBridgeClient {
     ooxml?: string;
     metadata?: any;
   }) {
-    if (!this.apiUrl || !this.token) {
-      throw new Error("Connect to HaloBridge before saving in this mode.");
+    if (!this.baseUrl || !this.token) {
+      throw new Error("Add-in is not connected to a HaloBridge instance.");
     }
 
     try {
-      const response = await axios.post(`${this.apiUrl}/api/word/gallodoc/save/`, payload, {
+      const response = await axios.post(`${this.baseUrl}/api/word/gallodoc/save/`, payload, {
         headers: {
-          'Content-Type': 'application/json',
           'Authorization': `Bearer ${this.token}`
         }
       });
       return response.data;
     } catch (error: any) {
       if (error.response?.status === 401) {
-        this.logout();
-        throw new Error("Session expired. Please reconnect.");
+        throw new Error("AUTH_EXPIRED");
       }
       console.error('HaloBridge Sync Error:', error.response?.data || error.message);
       throw new Error(error.response?.data?.message || error.response?.data?.error || "Sync failed");
