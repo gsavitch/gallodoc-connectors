@@ -1,0 +1,26 @@
+{
+  "name": "gallodoc-word-connector",
+  "version": "1.0.0",
+  "description": "Microsoft Word Connector for GalloDoc",
+  "main": "src/taskpane/taskpane.ts",
+  "scripts": {
+    "build": "webpack --mode production",
+    "start": "webpack serve --mode development",
+    "lint": "eslint src/**/*.ts"
+  },
+  "dependencies": {
+    "axios": "^1.7.0",
+    "uuid": "^9.0.0"
+  },
+  "devDependencies": {
+    "@types/office-js": "^1.0.200",
+    "typescript": "^5.0.0",
+    "webpack": "^5.0.0",
+    "webpack-cli": "^5.0.0",
+    "webpack-dev-server": "^4.0.0",
+    "ts-loader": "^9.0.0",
+    "html-webpack-plugin": "^5.0.0",
+    "css-loader": "^6.0.0",
+    "style-loader": "^3.0.0"
+  }
+}
