@@ -4,6 +4,7 @@ import { HaloBridgeClient } from "../lib/halobridgeClient";
 import { getConnectorSettings, saveConnectorSettings, clearConnectorSettings, ConnectorSettings } from "../lib/storage";
 import { GalloDocManifest, readGalloDocManifest, writeGalloDocManifest, buildManifestFromSaveResponse } from "../lib/wordManifest";
 import SHA256 from "crypto-js/sha256";
+import "./taskpane.css";
 
 /* global Office, Word */
 
