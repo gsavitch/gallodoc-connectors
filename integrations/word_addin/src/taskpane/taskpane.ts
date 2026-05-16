@@ -6,7 +6,9 @@ import { GalloDocManifest, readGalloDocManifest, writeGalloDocManifest, buildMan
 import SHA256 from "crypto-js/sha256";
 import "./taskpane.css";
 
-/* global Office, Word */
+/* global SHA256 */
+declare const OfficeRuntime: any;
+declare const Office: any;
 
 const hbClient = new HaloBridgeClient();
 let currentSettings: ConnectorSettings;
@@ -55,7 +57,6 @@ async function initializeTaskPane() {
     document.getElementById("tokenFields")?.classList.toggle("hidden", mode !== "token");
   });
 
-  btnAction.addEventListener("click", handleAction);
   btnView.addEventListener("click", showLastResult);
   btnCloseModal.addEventListener("click", () => document.getElementById("resultOverlay")?.classList.add("hidden"));
   btnCopy.addEventListener("click", copyToClipboard);
@@ -255,17 +256,17 @@ async function handleAction(action: "save" | "save_as" = "save") {
   try {
     await Word.run(async (context) => {
       const body = context.document.body;
-      const text = body.getText();
-      const ooxml = body.getOoxml();
+      body.load("text");
+      body.load("ooxml");
       
       await context.sync();
 
       const docName = Office.context.document.url ? Office.context.document.url.split('/').pop() || "Document.docx" : "Unsaved Document";
-      const contentForHash = ooxml.value || text.value || "";
+      const contentForHash = body.ooxml || body.text || "";
       const sourceHash = SHA256(contentForHash).toString();
 
       if (currentMode === ConnectorMode.Local) {
-        lastResult = await generateLocalGalloDoc(text.value, !!ooxml.value, docName);
+        lastResult = await generateLocalGalloDoc(body.text, !!body.ooxml, docName);
         updateStatus("SUCCESS", "Local GalloDoc generated.");
         showLastResult();
       } else {
@@ -274,8 +275,8 @@ async function handleAction(action: "save" | "save_as" = "save") {
         lastResult = await hbClient.saveWordDocument({
           mode: currentMode,
           document_name: docName,
-          document_text: text.value,
-          ooxml: ooxml.value,
+          document_text: body.text,
+          ooxml: body.ooxml,
           save_action: action,
           document_id: (action === "save") ? currentManifest?.mvp_document_id : undefined,
           source_document_id: (action === "save_as") ? currentManifest?.mvp_document_id : undefined,
