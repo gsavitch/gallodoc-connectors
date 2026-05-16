@@ -19,23 +19,50 @@
         <!-- Connection Panel -->
         <section id="connectionPanel" class="mb-6 border-b border-[#141414] pb-6">
             <div id="loginForm" class="">
-                <h2 class="text-[10px] uppercase font-bold mb-4">Connect to Server</h2>
-                <div class="flex flex-col gap-2">
-                    <input id="baseUrl" type="text" placeholder="Base URL" class="bg-white border border-[#141414] p-2 text-xs font-mono" />
-                    <input id="username" type="text" placeholder="Username" class="bg-white border border-[#141414] p-2 text-xs font-mono" />
-                    <input id="password" type="password" placeholder="Password" class="bg-white border border-[#141414] p-2 text-xs font-mono" />
-                    <button id="btnConnect" class="bg-[#141414] text-[#E4E3E0] p-2 text-xs font-bold uppercase hover:bg-opacity-90">Connect</button>
-                    <p class="text-[9px] opacity-50 italic">Dev hint: admin / gallo</p>
+                <h2 class="text-[10px] uppercase font-bold mb-4">Connection Settings</h2>
+                
+                <div class="flex flex-col gap-3">
+                    <!-- Base URL -->
+                    <div class="flex flex-col gap-1">
+                        <label class="text-[9px] uppercase font-bold opacity-70">HaloBridge Base URL</label>
+                        <input id="baseUrl" type="text" placeholder="e.g. https://qa.halobridge.ai" class="bg-white border border-[#141414] p-2 text-xs font-mono" />
+                    </div>
+
+                    <!-- Auth Mode -->
+                    <div class="flex flex-col gap-1">
+                        <label class="text-[9px] uppercase font-bold opacity-70">Authentication Mode</label>
+                        <select id="authMode" class="bg-white border border-[#141414] p-2 text-xs font-bold uppercase tracking-tight appearance-none cursor-pointer">
+                            <option value="password">Username / Password</option>
+                            <option value="token">API Token</option>
+                        </select>
+                    </div>
+
+                    <!-- Password Fields -->
+                    <div id="passwordFields" class="flex flex-col gap-2">
+                        <input id="username" type="text" placeholder="Username" class="bg-white border border-[#141414] p-2 text-xs font-mono" />
+                        <input id="password" type="password" placeholder="Password" class="bg-white border border-[#141414] p-2 text-xs font-mono" />
+                    </div>
+
+                    <!-- Token Field -->
+                    <div id="tokenFields" class="hidden flex flex-col gap-2">
+                        <input id="apiToken" type="text" placeholder="API Token" class="bg-white border border-[#141414] p-2 text-xs font-mono" />
+                    </div>
+
+                    <div class="flex gap-2">
+                        <button id="btnConnect" class="flex-1 bg-[#141414] text-[#E4E3E0] p-2 text-xs font-bold uppercase hover:bg-opacity-90">Connect</button>
+                        <button id="btnTest" class="border border-[#141414] px-4 py-2 text-[9px] font-bold uppercase hover:bg-[#141414] hover:text-[#E4E3E0]">Test</button>
+                    </div>
                 </div>
             </div>
+            
             <div id="connectedState" class="hidden">
                 <div class="flex justify-between items-start mb-2">
                     <div>
-                        <h2 class="text-[10px] uppercase font-bold">Connected</h2>
+                        <h2 class="text-[10px] uppercase font-bold text-green-700">Connected</h2>
                         <p id="connectedUser" class="text-xs font-bold"></p>
-                        <p id="connectedTenant" class="text-[10px] opacity-70"></p>
+                        <p id="connectedUrl" class="text-[9px] font-mono opacity-50 truncate max-w-[150px]"></p>
                     </div>
-                    <button id="btnDisconnect" class="text-[10px] font-bold uppercase border-b border-[#141414] hover:opacity-50">Log Out</button>
+                    <button id="btnDisconnect" class="text-[10px] font-bold uppercase border-b border-[#141414] hover:opacity-50">Disconnect</button>
                 </div>
             </div>
         </section>
