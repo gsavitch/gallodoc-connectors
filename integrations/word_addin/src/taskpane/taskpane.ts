@@ -2,11 +2,14 @@ import { ConnectorMode, MODE_CONFIG } from "../lib/modeConfig";
 import { generateLocalGalloDoc } from "../lib/gallodocLocal";
 import { HaloBridgeClient } from "../lib/halobridgeClient";
 import { getConnectorSettings, saveConnectorSettings, clearConnectorSettings, ConnectorSettings } from "../lib/storage";
+import { GalloDocManifest, readGalloDocManifest, writeGalloDocManifest, buildManifestFromSaveResponse } from "../lib/wordManifest";
+import SHA256 from "crypto-js/sha256";
 
 /* global Office, Word */
 
 const hbClient = new HaloBridgeClient();
 let currentSettings: ConnectorSettings;
+let currentManifest: GalloDocManifest | null = null;
 
 let currentMode = ConnectorMode.Local;
 let lastResult: any = null;
@@ -60,8 +63,39 @@ async function initializeTaskPane() {
   btnTest.addEventListener("click", handleTestConnection);
   btnDisconnect.addEventListener("click", handleDisconnect);
 
+  const btnSaveAs = document.getElementById("btnSaveAs") as HTMLButtonElement;
+  btnSaveAs.addEventListener("click", () => handleAction("save_as"));
+  btnAction.addEventListener("click", () => handleAction("save"));
+
   updateUIForMode();
   updateUIForConnection();
+  await refreshManifest();
+}
+
+async function refreshManifest() {
+  currentManifest = await readGalloDocManifest();
+  updateUIForManifest();
+}
+
+function updateUIForManifest() {
+  const docStatusPanel = document.getElementById("docStatusPanel") as HTMLElement;
+  const stDocId = document.getElementById("stDocId") as HTMLElement;
+  const stVersion = document.getElementById("stVersion") as HTMLElement;
+  const stReview = document.getElementById("stReview") as HTMLElement;
+  const stLastSync = document.getElementById("stLastSync") as HTMLElement;
+  const btnSaveAs = document.getElementById("btnSaveAs") as HTMLButtonElement;
+
+  if (currentManifest) {
+    docStatusPanel.classList.remove("hidden");
+    stDocId.innerText = currentManifest.mvp_document_id;
+    stVersion.innerText = `#${currentManifest.latest_version_number}`;
+    stReview.innerText = currentManifest.review_status;
+    stLastSync.innerText = new Date(currentManifest.last_synced_at).toLocaleString();
+    btnSaveAs.classList.remove("hidden");
+  } else {
+    docStatusPanel.classList.add("hidden");
+    btnSaveAs.classList.add("hidden");
+  }
 }
 
 function hydrateUI() {
@@ -203,10 +237,15 @@ function updateUIForMode() {
   }
 }
 
-async function handleAction() {
+async function handleAction(action: "save" | "save_as" = "save") {
   const config = MODE_CONFIG[currentMode];
   if (config.requiresLogin && !currentSettings.connected) {
     updateStatus("ERROR", "Connection required for cloud sync.");
+    return;
+  }
+
+  if (action === "save_as" && !currentManifest) {
+    updateStatus("ERROR", "Unlinked document. Save to HaloBridge first.");
     return;
   }
 
@@ -221,24 +260,41 @@ async function handleAction() {
       await context.sync();
 
       const docName = Office.context.document.url ? Office.context.document.url.split('/').pop() || "Document.docx" : "Unsaved Document";
-      
+      const contentForHash = ooxml.value || text.value || "";
+      const sourceHash = SHA256(contentForHash).toString();
+
       if (currentMode === ConnectorMode.Local) {
         lastResult = await generateLocalGalloDoc(text.value, !!ooxml.value, docName);
         updateStatus("SUCCESS", "Local GalloDoc generated.");
         showLastResult();
       } else {
-        updateStatus("UPLOADING", "Syncing to HaloBridge...");
+        updateStatus("UPLOADING", action === "save_as" ? "Creating new branch..." : "Syncing to HaloBridge...");
+        
         lastResult = await hbClient.saveWordDocument({
           mode: currentMode,
           document_name: docName,
           document_text: text.value,
           ooxml: ooxml.value,
+          save_action: action,
+          document_id: (action === "save") ? currentManifest?.mvp_document_id : undefined,
+          source_document_id: (action === "save_as") ? currentManifest?.mvp_document_id : undefined,
           metadata: {
-            client_platform: Office.context.diagnostics.platform,
-            office_version: Office.context.diagnostics.version
+            office_version: Office.context.diagnostics.version,
+            connector_manifest: currentManifest
           }
         });
-        updateStatus("SYNCED", `Cloud Version ${lastResult.version_number} saved.`);
+
+        // Update local manifest
+        const newManifest = buildManifestFromSaveResponse(lastResult, sourceHash, currentManifest);
+        const success = await writeGalloDocManifest(newManifest);
+        
+        if (success) {
+          updateStatus("SYNCED", `Version ${lastResult.version_number} saved.`);
+          await refreshManifest();
+        } else {
+          updateStatus("WARNING", "Cloud saved, but local manifest failed.");
+        }
+
         const btnAction = document.getElementById("btnAction") as HTMLButtonElement;
         if (btnAction) btnAction.innerText = "Re-sync";
         document.getElementById("btnView")?.classList.remove("hidden");
