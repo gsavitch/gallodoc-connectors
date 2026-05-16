@@ -148,6 +148,9 @@ const WordSaveSchema = z.object({
   document_name: z.string().min(1),
   document_text: z.string().optional(),
   ooxml: z.string().optional(),
+  save_action: z.enum(['save', 'save_as']).optional().default('save'),
+  document_id: z.string().optional(),
+  source_document_id: z.string().optional(),
   metadata: z.record(z.string(), z.any()).optional(),
   source_app: z.string().default('microsoft_word'),
   source_connector: z.string().default('halobridge_word_addin'),
@@ -189,15 +192,33 @@ app.post('/api/word/gallodoc/save/', async (req, res) => {
     const sourceHash = crypto.createHash('sha256').update(sourceContent).digest('hex');
 
     // Find or Create Document (bound to tenant)
-    let doc = documents.find(d => d.name === data.document_name && d.tenant_id === authSession.tenant.id);
-    if (!doc) {
+    let doc;
+    if (data.save_action === 'save_as' && data.source_document_id) {
+      // Create a NEW document linked to source
       doc = {
         id: uuidv4(),
-        name: data.document_name,
+        name: `${data.document_name} (Copy)`,
         tenant_id: authSession.tenant.id,
+        source_document_id: data.source_document_id,
         created_at: new Date().toISOString(),
       };
       documents.push(doc);
+    } else if (data.document_id) {
+      doc = documents.find(d => d.id === data.document_id && d.tenant_id === authSession.tenant.id);
+    }
+
+    if (!doc) {
+      // Fallback or Initial Save
+      doc = documents.find(d => d.name === data.document_name && d.tenant_id === authSession.tenant.id);
+      if (!doc) {
+        doc = {
+          id: uuidv4(),
+          name: data.document_name,
+          tenant_id: authSession.tenant.id,
+          created_at: new Date().toISOString(),
+        };
+        documents.push(doc);
+      }
     }
 
     // Determine tier scope based on mode if not provided
