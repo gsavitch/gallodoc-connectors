@@ -1,4 +1,5 @@
 const HtmlWebpackPlugin = require("html-webpack-plugin");
+const CopyWebpackPlugin = require("copy-webpack-plugin");
 const path = require("path");
 
 module.exports = {
@@ -39,6 +40,15 @@ module.exports = {
       filename: "taskpane.html",
       chunks: ["taskpane"],
     }),
+    new CopyWebpackPlugin({
+      patterns: [
+        {
+          from: "public",
+          to: ".",
+          noErrorOnMissing: true,
+        },
+      ],
+    }),
   ],
   output: {
     filename: "[name].bundle.js",
@@ -48,6 +58,9 @@ module.exports = {
   devServer: {
     headers: {
       "Access-Control-Allow-Origin": "*",
+    },
+    static: {
+      directory: path.join(__dirname, "public"),
     },
     server: {
       type: "https",
