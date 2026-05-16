@@ -61,6 +61,11 @@ function getProjectFiles(dir: string, allFiles: string[] = []) {
 
 // --- API ROUTES ---
 
+// Health Check for connectivity testing
+app.get('/api/health/', (req, res) => {
+  res.json({ status: "ok", version: "1.0.0", instance: "HaloBridge-Mock-Dev" });
+});
+
 // GitHub Project Sync Endpoint
 app.post('/api/github/push-project', async (req, res) => {
   const token = req.cookies.github_token;
