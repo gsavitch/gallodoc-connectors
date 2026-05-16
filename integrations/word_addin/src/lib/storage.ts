@@ -1,4 +1,5 @@
-/* global OfficeRuntime, Office */
+declare const OfficeRuntime: any;
+declare const Office: any;
 
 export interface ConnectorSettings {
   baseUrl: string;
