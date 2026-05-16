@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>GalloDoc Word Connector</title>
+    <script src="https://appsforoffice.microsoft.com/lib/1.1/hosted/office.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=JetBrains+Mono&display=swap" rel="stylesheet">
+</head>
+<body class="bg-[#E4E3E0] text-[#141414] font-sans m-0 p-0 overflow-x-hidden">
+    <div id="container" class="flex flex-col min-h-screen p-6">
+        <!-- Header -->
+        <header class="flex flex-col gap-1 mb-6">
+            <h1 class="text-2xl font-bold uppercase tracking-tighter">HaloBridge</h1>
+            <p class="text-[10px] font-mono opacity-50 uppercase tracking-widest">Word-to-GalloDoc Connector</p>
+        </header>
+
+        <!-- Connection Panel -->
+        <section id="connectionPanel" class="mb-6 border-b border-[#141414] pb-6">
+            <div id="loginForm" class="">
+                <h2 class="text-[10px] uppercase font-bold mb-4">Connect to Server</h2>
+                <div class="flex flex-col gap-2">
+                    <input id="baseUrl" type="text" placeholder="Base URL" class="bg-white border border-[#141414] p-2 text-xs font-mono" />
+                    <input id="username" type="text" placeholder="Username" class="bg-white border border-[#141414] p-2 text-xs font-mono" />
+                    <input id="password" type="password" placeholder="Password" class="bg-white border border-[#141414] p-2 text-xs font-mono" />
+                    <button id="btnConnect" class="bg-[#141414] text-[#E4E3E0] p-2 text-xs font-bold uppercase hover:bg-opacity-90">Connect</button>
+                    <p class="text-[9px] opacity-50 italic">Dev hint: admin / gallo</p>
+                </div>
+            </div>
+            <div id="connectedState" class="hidden">
+                <div class="flex justify-between items-start mb-2">
+                    <div>
+                        <h2 class="text-[10px] uppercase font-bold">Connected</h2>
+                        <p id="connectedUser" class="text-xs font-bold"></p>
+                        <p id="connectedTenant" class="text-[10px] opacity-70"></p>
+                    </div>
+                    <button id="btnDisconnect" class="text-[10px] font-bold uppercase border-b border-[#141414] hover:opacity-50">Log Out</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Mode Selector -->
+        <section class="mb-8">
+            <label class="text-[10px] uppercase font-bold mb-2 block">Connection Mode</label>
+            <select id="modeSelector" class="w-full bg-white border border-[#141414] p-3 text-sm font-bold appearance-none cursor-pointer">
+                <option value="local_open_source">Local / Open Source</option>
+                <option value="free_connected">Free Connected</option>
+                <option value="enterprise_connected">Enterprise Connected</option>
+            </select>
+            <p id="modeDescription" class="text-[11px] mt-2 italic opacity-70 leading-relaxed">
+                Local mode: No data leaves your machine. Generates a local JSON.
+            </p>
+        </section>
+
+        <!-- Status Panel -->
+        <div id="statusPanel" class="border border-[#141414] p-4 mb-8 bg-white bg-opacity-50">
+            <div class="flex justify-between items-center mb-2">
+                <span class="text-[10px] uppercase font-bold">Status</span>
+                <span id="connectionStatus" class="text-[10px] font-mono text-green-600">IDLE</span>
+            </div>
+            <p id="statusMessage" class="text-xs font-mono opacity-60">Ready to ingest document.</p>
+        </div>
+
+        <!-- Actions -->
+        <div class="flex flex-col gap-3 mt-auto">
+            <button id="btnAction" class="bg-[#141414] text-[#E4E3E0] p-4 text-sm font-bold uppercase hover:bg-opacity-90 transition-all flex items-center justify-center gap-2">
+                Create Local GalloDoc
+            </button>
+            
+            <button id="btnView" class="hidden border border-[#141414] p-3 text-xs font-bold uppercase hover:bg-[#141414] hover:text-[#E4E3E0] transition-all">
+                View Last Result
+            </button>
+        </div>
+
+        <!-- Trust Note -->
+        <footer class="mt-8 pt-8 border-t border-[#141414] border-opacity-10 text-[10px] text-center opacity-50">
+            Local mode does not upload your document.<br>Connected modes require HaloBridge login.
+        </footer>
+
+        <!-- Result Modal (Hidden by default) -->
+        <div id="resultOverlay" class="fixed inset-0 bg-[#141414] bg-opacity-90 hidden flex flex-col p-6 z-50">
+            <div class="flex justify-between items-center mb-4 text-[#E4E3E0]">
+                <h3 class="font-bold uppercase">GalloDoc Result</h3>
+                <button id="btnCloseModal" class="text-xl font-bold">&times;</button>
+            </div>
+            <pre id="resultOutput" class="flex-1 bg-black text-green-400 p-4 font-mono text-[10px] overflow-auto border border-[#E4E3E0] border-opacity-20"></pre>
+            <button id="btnCopy" class="mt-4 bg-[#E4E3E0] text-[#141414] p-3 text-xs font-bold uppercase">Copy to Clipboard</button>
+        </div>
+    </div>
+</body>
+</html>
