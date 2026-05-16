@@ -1,11 +1,12 @@
 import { ConnectorMode, MODE_CONFIG } from "../lib/modeConfig";
 import { generateLocalGalloDoc } from "../lib/gallodocLocal";
 import { HaloBridgeClient } from "../lib/halobridgeClient";
+import { getConnectorSettings, saveConnectorSettings, clearConnectorSettings, ConnectorSettings } from "../lib/storage";
 
 /* global Office, Word */
 
-// Configuration - In production, this would be injected via environment or settings
 const hbClient = new HaloBridgeClient();
+let currentSettings: ConnectorSettings;
 
 let currentMode = ConnectorMode.Local;
 let lastResult: any = null;
@@ -16,24 +17,38 @@ Office.onReady((info) => {
   }
 });
 
-function initializeTaskPane() {
+async function initializeTaskPane() {
   const modeSelector = document.getElementById("modeSelector") as HTMLSelectElement;
   const btnAction = document.getElementById("btnAction") as HTMLButtonElement;
   const btnView = document.getElementById("btnView") as HTMLButtonElement;
   const btnCloseModal = document.getElementById("btnCloseModal") as HTMLButtonElement;
   const btnCopy = document.getElementById("btnCopy") as HTMLButtonElement;
-  const modeDescription = document.getElementById("modeDescription") as HTMLParagraphElement;
   
   const btnConnect = document.getElementById("btnConnect") as HTMLButtonElement;
+  const btnTest = document.getElementById("btnTest") as HTMLButtonElement;
   const btnDisconnect = document.getElementById("btnDisconnect") as HTMLButtonElement;
-  const baseUrlInput = document.getElementById("baseUrl") as HTMLInputElement;
+  const authModeSelect = document.getElementById("authMode") as HTMLSelectElement;
 
-  // Set default base URL for ease of use in AI Studio
-  baseUrlInput.value = window.location.origin;
+  // Load persistent settings
+  currentSettings = await getConnectorSettings();
+  
+  // Set default if empty and in development/AI Studio
+  if (!currentSettings.baseUrl && typeof window !== "undefined") {
+    currentSettings.baseUrl = window.location.origin;
+  }
+
+  // Hydrate UI from settings
+  hydrateUI();
 
   modeSelector.addEventListener("change", (e) => {
     currentMode = (e.target as HTMLSelectElement).value as ConnectorMode;
     updateUIForMode();
+  });
+
+  authModeSelect.addEventListener("change", (e) => {
+    const mode = (e.target as HTMLSelectElement).value;
+    document.getElementById("passwordFields")?.classList.toggle("hidden", mode !== "password");
+    document.getElementById("tokenFields")?.classList.toggle("hidden", mode !== "token");
   });
 
   btnAction.addEventListener("click", handleAction);
@@ -42,30 +57,93 @@ function initializeTaskPane() {
   btnCopy.addEventListener("click", copyToClipboard);
   
   btnConnect.addEventListener("click", handleConnect);
-  btnDisconnect.addEventListener("click", () => {
-    hbClient.logout();
-    updateUIForConnection();
-  });
+  btnTest.addEventListener("click", handleTestConnection);
+  btnDisconnect.addEventListener("click", handleDisconnect);
 
   updateUIForMode();
   updateUIForConnection();
 }
 
+function hydrateUI() {
+  const baseUrlInput = document.getElementById("baseUrl") as HTMLInputElement;
+  const authModeSelect = document.getElementById("authMode") as HTMLSelectElement;
+  const apiTokenInput = document.getElementById("apiToken") as HTMLInputElement;
+  const usernameInput = document.getElementById("username") as HTMLInputElement;
+
+  baseUrlInput.value = currentSettings.baseUrl || "";
+  authModeSelect.value = currentSettings.authType;
+  apiTokenInput.value = currentSettings.token || "";
+  usernameInput.value = currentSettings.username || "";
+
+  document.getElementById("passwordFields")?.classList.toggle("hidden", currentSettings.authType !== "password");
+  document.getElementById("tokenFields")?.classList.toggle("hidden", currentSettings.authType !== "token");
+
+  if (currentSettings.connected && currentSettings.baseUrl) {
+    hbClient.setConfiguration(currentSettings.baseUrl, currentSettings.token);
+  }
+}
+
+async function handleTestConnection() {
+  const baseUrl = (document.getElementById("baseUrl") as HTMLInputElement).value;
+  if (!baseUrl) {
+    updateStatus("ERROR", "Base URL is required for testing.");
+    return;
+  }
+  
+  updateStatus("PROCESSING", "Testing HaloBridge connectivity...");
+  const result = await hbClient.testConnection(baseUrl);
+  
+  if (result.status === "ok") {
+    updateStatus("SUCCESS", "HaloBridge Reachable");
+  } else {
+    updateStatus("ERROR", result.message);
+  }
+}
+
 async function handleConnect() {
   const baseUrl = (document.getElementById("baseUrl") as HTMLInputElement).value;
-  const username = (document.getElementById("username") as HTMLInputElement).value;
-  const password = (document.getElementById("password") as HTMLInputElement).value;
+  const authType = (document.getElementById("authMode") as HTMLSelectElement).value as "password" | "token";
 
-  if (!baseUrl || !username || !password) {
-    updateStatus("ERROR", "Please fill in all connection fields.");
+  if (!baseUrl) {
+    updateStatus("ERROR", "Base URL is required to connect.");
     return;
   }
 
-  updateStatus("CONNECTING", "Establishing connection...");
+  updateStatus("PROCESSING", "Connecting to HaloBridge...");
 
   try {
-    const conn = await hbClient.login(baseUrl, username, password);
-    updateStatus("CONNECTED", `Logged in as ${conn.user.display_name}`);
+    if (authType === "password") {
+      const username = (document.getElementById("username") as HTMLInputElement).value;
+      const password = (document.getElementById("password") as HTMLInputElement).value;
+
+      if (!username || !password) throw new Error("Credentials required");
+
+      const res = await hbClient.login(baseUrl, username, password);
+      currentSettings = {
+        baseUrl,
+        authType: "password",
+        token: res.token,
+        username: res.user.display_name,
+        connected: true
+      };
+      // Clear password field immediately after use
+      (document.getElementById("password") as HTMLInputElement).value = "";
+    } else {
+      const token = (document.getElementById("apiToken") as HTMLInputElement).value;
+      if (!token) throw new Error("API Token required");
+
+      hbClient.setConfiguration(baseUrl, token);
+      currentSettings = {
+        baseUrl,
+        authType: "token",
+        token: token,
+        username: "API Client",
+        connected: true
+      };
+    }
+
+    await saveConnectorSettings(currentSettings);
+    updateStatus("SUCCESS", `Connected to ${baseUrl}`);
     updateUIForConnection();
   } catch (error: any) {
     updateStatus("ERROR", error.message);
@@ -73,18 +151,17 @@ async function handleConnect() {
 }
 
 function updateUIForConnection() {
-  const conn = hbClient.getConnection();
   const loginForm = document.getElementById("loginForm") as HTMLDivElement;
   const connectedState = document.getElementById("connectedState") as HTMLDivElement;
   const connectedUser = document.getElementById("connectedUser") as HTMLParagraphElement;
-  const connectedTenant = document.getElementById("connectedTenant") as HTMLParagraphElement;
+  const connectedUrl = document.getElementById("connectedUrl") as HTMLParagraphElement;
 
-  if (conn) {
+  if (currentSettings.connected) {
     loginForm.classList.add("hidden");
     connectedState.classList.remove("hidden");
-    connectedUser.innerText = conn.user.display_name;
-    connectedTenant.innerText = conn.tenant.name;
-    updateUIForMode(); // Refresh mode warnings
+    connectedUser.innerText = currentSettings.username || "Connected";
+    connectedUrl.innerText = currentSettings.baseUrl;
+    updateUIForMode(); 
   } else {
     loginForm.classList.remove("hidden");
     connectedState.classList.add("hidden");
@@ -92,19 +169,34 @@ function updateUIForConnection() {
   }
 }
 
+async function handleDisconnect() {
+  await clearConnectorSettings();
+  const oldUrl = currentSettings.baseUrl;
+  currentSettings = {
+    baseUrl: oldUrl, // Preserve for convenience
+    authType: "password",
+    token: null,
+    username: null,
+    connected: false
+  };
+  hbClient.setConfiguration("", null);
+  updateUIForConnection();
+  updateStatus("IDLE", "Disconnected from HaloBridge.");
+}
+
 function updateUIForMode() {
   const config = MODE_CONFIG[currentMode];
   const btnAction = document.getElementById("btnAction") as HTMLButtonElement;
   const modeDescription = document.getElementById("modeDescription") as HTMLParagraphElement;
   
-  btnAction.innerText = config.buttonText;
-  modeDescription.innerText = config.description;
+  if (btnAction) btnAction.innerText = config.buttonText;
+  if (modeDescription) modeDescription.innerText = config.description;
   
   if (config.requiresLogin) {
-    if (hbClient.isLoggedIn()) {
-      updateStatus("READY", `Connected to ${hbClient.getConnection()?.tenant.name}`);
+    if (currentSettings.connected) {
+      updateStatus("READY", `Syncing to ${currentSettings.baseUrl}`);
     } else {
-      updateStatus("DISCONNECTED", "Connect to HaloBridge before saving in this mode.");
+      updateStatus("DISCONNECTED", "Configure connection to use cloud sync.");
     }
   } else {
     updateStatus("IDLE", "Local mode active. No data will be uploaded.");
@@ -113,12 +205,12 @@ function updateUIForMode() {
 
 async function handleAction() {
   const config = MODE_CONFIG[currentMode];
-  if (config.requiresLogin && !hbClient.isLoggedIn()) {
-    updateStatus("ERROR", "Authorization required for this mode.");
+  if (config.requiresLogin && !currentSettings.connected) {
+    updateStatus("ERROR", "Connection required for cloud sync.");
     return;
   }
 
-  updateStatus("PROCESSING", "Reading document content...");
+  updateStatus("PROCESSING", "Reading document...");
   
   try {
     await Word.run(async (context) => {
@@ -128,14 +220,14 @@ async function handleAction() {
       
       await context.sync();
 
-      const docName = "Word_Document.docx"; // Fallback if title not found
+      const docName = Office.context.document.url ? Office.context.document.url.split('/').pop() || "Document.docx" : "Unsaved Document";
       
       if (currentMode === ConnectorMode.Local) {
         lastResult = await generateLocalGalloDoc(text.value, !!ooxml.value, docName);
-        updateStatus("SUCCESS", "Local GalloDoc JSON generated.");
+        updateStatus("SUCCESS", "Local GalloDoc generated.");
         showLastResult();
       } else {
-        updateStatus("UPLOADING", "Syncing with HaloBridge Cloud...");
+        updateStatus("UPLOADING", "Syncing to HaloBridge...");
         lastResult = await hbClient.saveWordDocument({
           mode: currentMode,
           document_name: docName,
@@ -146,15 +238,19 @@ async function handleAction() {
             office_version: Office.context.diagnostics.version
           }
         });
-        updateStatus("SYNCED", `Version ${lastResult.version_number} saved to HaloBridge.`);
+        updateStatus("SYNCED", `Cloud Version ${lastResult.version_number} saved.`);
         const btnAction = document.getElementById("btnAction") as HTMLButtonElement;
-        btnAction.innerText = "Re-sync to HaloBridge";
+        if (btnAction) btnAction.innerText = "Re-sync";
         document.getElementById("btnView")?.classList.remove("hidden");
       }
     });
   } catch (error: any) {
-    console.error(error);
-    updateStatus("ERROR", error.message || "Failed to process document.");
+    if (error.message === "AUTH_EXPIRED") {
+      updateStatus("ERROR", "Session expired.");
+      handleDisconnect();
+    } else {
+      updateStatus("ERROR", error.message || "Operation failed.");
+    }
   }
 }
 
@@ -162,10 +258,9 @@ function updateStatus(status: string, message: string) {
   const connectionStatus = document.getElementById("connectionStatus") as HTMLSpanElement;
   const statusMessage = document.getElementById("statusMessage") as HTMLParagraphElement;
   
-  connectionStatus.innerText = status;
-  statusMessage.innerText = message;
+  if (connectionStatus) connectionStatus.innerText = status;
+  if (statusMessage) statusMessage.innerText = message;
 
-  // Change status color
   const colors: Record<string, string> = {
     IDLE: "text-gray-600",
     PROCESSING: "text-blue-600",
@@ -174,7 +269,7 @@ function updateStatus(status: string, message: string) {
     SYNCED: "text-green-600",
     ERROR: "text-red-600"
   };
-  connectionStatus.className = `text-[10px] font-mono ${colors[status] || "text-gray-600"}`;
+  if (connectionStatus) connectionStatus.className = `text-[10px] font-mono ${colors[status] || "text-gray-600"}`;
 }
 
 function showLastResult() {
