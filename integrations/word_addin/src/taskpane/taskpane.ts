@@ -17,7 +17,7 @@ let currentManifest: GalloDocManifest | null = null;
 let currentMode = ConnectorMode.Local;
 let lastResult: any = null;
 
-Office.onReady((info) => {
+Office.onReady((info: any) => {
   if (info.host === Office.HostType.Word) {
     initializeTaskPane();
   }
@@ -256,17 +256,20 @@ async function handleAction(action: "save" | "save_as" = "save") {
   try {
     await Word.run(async (context) => {
       const body = context.document.body;
+
       body.load("text");
-      body.load("ooxml");
-      
+      const ooxmlResult = body.getOoxml();
+
       await context.sync();
 
+      const documentText = body.text || "";
+      const ooxmlContent = ooxmlResult.value || "";
+
       const docName = Office.context.document.url ? Office.context.document.url.split('/').pop() || "Document.docx" : "Unsaved Document";
-      const contentForHash = body.ooxml || body.text || "";
-      const sourceHash = SHA256(contentForHash).toString();
+      const sourceHash = SHA256(ooxmlContent || documentText).toString();
 
       if (currentMode === ConnectorMode.Local) {
-        lastResult = await generateLocalGalloDoc(body.text, !!body.ooxml, docName);
+        lastResult = await generateLocalGalloDoc(documentText, !!ooxmlContent, docName);
         updateStatus("SUCCESS", "Local GalloDoc generated.");
         showLastResult();
       } else {
@@ -275,8 +278,8 @@ async function handleAction(action: "save" | "save_as" = "save") {
         lastResult = await hbClient.saveWordDocument({
           mode: currentMode,
           document_name: docName,
-          document_text: body.text,
-          ooxml: body.ooxml,
+          document_text: documentText,
+          ooxml: ooxmlContent,
           save_action: action,
           document_id: (action === "save") ? currentManifest?.mvp_document_id : undefined,
           source_document_id: (action === "save_as") ? currentManifest?.mvp_document_id : undefined,
