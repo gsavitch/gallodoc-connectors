@@ -68,16 +68,25 @@
         </section>
 
         <!-- Mode Selector -->
-        <section class="mb-8">
+        <section class="mb-4">
             <label class="text-[10px] uppercase font-bold mb-2 block">Connection Mode</label>
             <select id="modeSelector" class="w-full bg-white border border-[#141414] p-3 text-sm font-bold appearance-none cursor-pointer">
                 <option value="local_open_source">Local / Open Source</option>
                 <option value="free_connected">Free Connected</option>
                 <option value="enterprise_connected">Enterprise Connected</option>
             </select>
-            <p id="modeDescription" class="text-[11px] mt-2 italic opacity-70 leading-relaxed">
-                Local mode: No data leaves your machine. Generates a local JSON.
-            </p>
+            <p id="modeDescription" class="text-[11px] mt-2 italic opacity-70 leading-relaxed"></p>
+        </section>
+
+        <!-- GalloDoc Document Status -->
+        <section id="docStatusPanel" class="mb-4 p-3 border border-[#141414] bg-[#F0EFED] hidden">
+            <h2 class="text-[10px] uppercase font-bold mb-2">GalloDoc Status</h2>
+            <div class="flex flex-col gap-1">
+                <p class="text-[9px] flex justify-between"><span>GalloDoc ID:</span> <span id="stDocId" class="font-mono truncate max-w-[120px]">Not Linked</span></p>
+                <p class="text-[9px] flex justify-between"><span>Version:</span> <span id="stVersion" class="font-mono">-</span></p>
+                <p class="text-[9px] flex justify-between"><span>Review Status:</span> <span id="stReview" class="font-bold uppercase">Unknown</span></p>
+                <p class="text-[8px] opacity-50 mt-1 italic">Last sync: <span id="stLastSync">Never</span></p>
+            </div>
         </section>
 
         <!-- Status Panel -->
@@ -92,9 +101,13 @@
         <!-- Actions -->
         <div class="flex flex-col gap-3 mt-auto">
             <button id="btnAction" class="bg-[#141414] text-[#E4E3E0] p-4 text-sm font-bold uppercase hover:bg-opacity-90 transition-all flex items-center justify-center gap-2">
-                Create Local GalloDoc
+                Save to HaloBridge
             </button>
             
+            <button id="btnSaveAs" class="hidden border border-[#141414] p-3 text-xs font-bold uppercase hover:bg-[#141414] hover:text-[#E4E3E0] transition-all">
+                Save As New GalloDoc
+            </button>
+
             <button id="btnView" class="hidden border border-[#141414] p-3 text-xs font-bold uppercase hover:bg-[#141414] hover:text-[#E4E3E0] transition-all">
                 View Last Result
             </button>
