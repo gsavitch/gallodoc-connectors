@@ -1,0 +1,8 @@
+{
+  "name": "GalloDoc Connector Hub",
+  "description": "Unified dashboard for managing data connectors and synchronizing with the GalloDoc ecosystem via GitHub.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
