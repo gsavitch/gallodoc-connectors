@@ -1,6 +1,8 @@
 const HtmlWebpackPlugin = require("html-webpack-plugin");
 const CopyWebpackPlugin = require("copy-webpack-plugin");
 const path = require("path");
+const fs = require("fs");
+const os = require("os");
 
 module.exports = {
   context: __dirname,
@@ -64,6 +66,17 @@ module.exports = {
     },
     server: {
       type: "https",
+      options: (function () {
+        const certPath = path.join(os.homedir(), ".office-addin-dev-certs", "localhost.crt");
+        const keyPath = path.join(os.homedir(), ".office-addin-dev-certs", "localhost.key");
+        if (fs.existsSync(certPath) && fs.existsSync(keyPath)) {
+          return {
+            key: fs.readFileSync(keyPath),
+            cert: fs.readFileSync(certPath),
+          };
+        }
+        return {};
+      })(),
     },
     port: 3000,
     hot: true,
