@@ -64,6 +64,9 @@ export class HaloBridgeClient {
     document_name: string;
     document_text: string;
     ooxml?: string;
+    save_action?: "save" | "save_as";
+    document_id?: string;
+    source_document_id?: string;
     metadata?: any;
   }) {
     if (!this.baseUrl || !this.token) {
