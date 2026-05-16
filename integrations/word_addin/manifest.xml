@@ -39,10 +39,10 @@
               <Group id="GroupGalloDoc">
                 <Label resid="GroupLabel" />
                 <Control xsi:type="Button" id="ButtonOpenTaskpane">
-                  <Label resid="ButtonLabel" />
+                  <Label resid="Button.Label" />
                   <Supertip>
-                    <Title resid="ButtonLabel" />
-                    <Description resid="ButtonDescription" />
+                    <Title resid="Button.Label" />
+                    <Description resid="Button.Tooltip" />
                   </Supertip>
                   <Icon>
                     <bt:Image size="16" resid="Icon16" />
@@ -71,13 +71,13 @@
         <bt:Url id="GetStarted.LearnMoreUrl" DefaultValue="https://github.com/gsavitch/gallodoc-connectors" />
       </bt:Urls>
       <bt:ShortStrings>
-        <bt:ShortString id="GroupLabel" DefaultValue="GalloDoc" />
-        <bt:ShortString id="ButtonLabel" DefaultValue="Open Connector" />
-        <bt:ShortString id="GetStarted.Title" DefaultValue="GalloDoc Connector" />
+        <bt:String id="GroupLabel" DefaultValue="GalloDoc" />
+        <bt:String id="Button.Label" DefaultValue="Open GalloDoc" />
+        <bt:String id="GetStarted.Title" DefaultValue="Get started with GalloDoc" />
       </bt:ShortStrings>
       <bt:LongStrings>
-        <bt:LongString id="ButtonDescription" DefaultValue="Connect this document to HaloBridge/GalloDoc." />
-        <bt:LongString id="GetStarted.Description" DefaultValue="Open the taskpane to get started." />
+        <bt:String id="Button.Tooltip" DefaultValue="Open the GalloDoc task pane." />
+        <bt:String id="GetStarted.Description" DefaultValue="Connect Word documents to HaloBridge and GalloDoc." />
       </bt:LongStrings>
     </Resources>
   </VersionOverrides>
