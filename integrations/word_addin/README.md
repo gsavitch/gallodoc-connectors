@@ -38,6 +38,11 @@ By default, the server runs at `https://localhost:3000`.
 - **HTTPS Issues**: Office add-ins require HTTPS. `npm start` uses a self-signed certificate. You may need to visit `https://localhost:3000/taskpane.html` in your browser and choose "Advanced" -> "Proceed anyway" to trust the certificate before it works inside Word.
 - **OfficeRuntime.storage missing**: Ensure you are using a supported version of Office (2019+ or Microsoft 365).
 
+### Common Build Fixes
+- **Missing @types/uuid**: If you see `Could not find declaration file for module 'uuid'`, run `npm install --save-dev @types/uuid`.
+- **OfficeRuntime Typing**: `OfficeRuntime` is a global available in Office Add-in shared runtimes. For TypeScript, it is declared as `any` in our source to allow for safe runtime checks and browser fallbacks.
+- **Word Body Text Extraction**: Always use `body.load("text")` and `await context.sync()` to read document content. The older `getText()` property is not supported in modern Office.js `Word.run` blocks.
+
 ## Persistent Connection Settings
 The Word Add-in features a persistent connection settings panel.
 - **OfficeRuntime.storage**: Used when available (shared runtime).
