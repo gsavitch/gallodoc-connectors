@@ -38,6 +38,11 @@
             <OfficeTab id="TabHome">
               <Group id="GroupGalloDoc">
                 <Label resid="GroupLabel" />
+                <Icon>
+                  <bt:Image size="16" resid="Icon16" />
+                  <bt:Image size="32" resid="Icon32" />
+                  <bt:Image size="80" resid="Icon80" />
+                </Icon>
                 <Control xsi:type="Button" id="ButtonOpenTaskpane">
                   <Label resid="Button.Label" />
                   <Supertip>
