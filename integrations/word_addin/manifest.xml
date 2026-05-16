@@ -29,20 +29,20 @@
       <Host xsi:type="Document">
         <DesktopFormFactor>
           <GetStarted>
-            <Title DefaultValue="GalloDoc Connector" />
-            <Description DefaultValue="Open the taskpane to get started." />
-            <LearnMoreUrl DefaultValue="https://github.com/gsavitch/gallodoc-connectors" />
+            <Title resid="GetStarted.Title" />
+            <Description resid="GetStarted.Description" />
+            <LearnMoreUrl resid="GetStarted.LearnMoreUrl" />
           </GetStarted>
-          <FunctionFile Resid="Taskpane.Url" />
+          <FunctionFile resid="Taskpane.Url" />
           <ExtensionPoint xsi:type="PrimaryCommandSurface">
             <OfficeTab id="TabHome">
               <Group id="GroupGalloDoc">
-                <Label Resid="GroupLabel" />
+                <Label resid="GroupLabel" />
                 <Control xsi:type="Button" id="ButtonOpenTaskpane">
-                  <Label Resid="ButtonLabel" />
+                  <Label resid="ButtonLabel" />
                   <Supertip>
-                    <Title Resid="ButtonLabel" />
-                    <Description Resid="ButtonDescription" />
+                    <Title resid="ButtonLabel" />
+                    <Description resid="ButtonDescription" />
                   </Supertip>
                   <Icon>
                     <bt:Image size="16" resid="Icon16" />
@@ -51,7 +51,7 @@
                   </Icon>
                   <Action xsi:type="ShowTaskpane">
                     <TaskpaneId>GalloDocTaskpane</TaskpaneId>
-                    <SourceLocation Resid="Taskpane.Url" />
+                    <SourceLocation resid="Taskpane.Url" />
                   </Action>
                 </Control>
               </Group>
@@ -68,13 +68,16 @@
       </bt:Images>
       <bt:Urls>
         <bt:Url id="Taskpane.Url" DefaultValue="https://localhost:3000/taskpane.html" />
+        <bt:Url id="GetStarted.LearnMoreUrl" DefaultValue="https://github.com/gsavitch/gallodoc-connectors" />
       </bt:Urls>
       <bt:ShortStrings>
         <bt:ShortString id="GroupLabel" DefaultValue="GalloDoc" />
         <bt:ShortString id="ButtonLabel" DefaultValue="Open Connector" />
+        <bt:ShortString id="GetStarted.Title" DefaultValue="GalloDoc Connector" />
       </bt:ShortStrings>
       <bt:LongStrings>
         <bt:LongString id="ButtonDescription" DefaultValue="Connect this document to HaloBridge/GalloDoc." />
+        <bt:LongString id="GetStarted.Description" DefaultValue="Open the taskpane to get started." />
       </bt:LongStrings>
     </Resources>
   </VersionOverrides>
