@@ -1,0 +1,14 @@
+/* Placeholder for taskpane styles - the HTML uses inline Tailwind-like classes but can be extended here */
+body {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+#resultOutput::-webkit-scrollbar {
+    width: 4px;
+}
+
+#resultOutput::-webkit-scrollbar-thumb {
+    background: #E4E3E0;
+    opacity: 0.2;
+}
