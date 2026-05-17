@@ -227,7 +227,7 @@ async function handleConnect() {
       
       // Verification test for token
       const test = await hbClient.testConnection(baseUrl);
-      if (test.status === "unreachable") throw new Error("Server unreachable with this token.");
+      if (test.status === "unreachable") throw new Error(`Server unreachable: ${test.message}`);
 
       currentSettings = {
         baseUrl,
