@@ -194,7 +194,9 @@ async function handleConnect() {
         token: res.token,
         tokenType: res.tokenType || "Token",
         username: res.user.display_name || res.user.username || username,
-        connected: true
+        connected: true,
+        autoSyncEnabled: currentSettings?.autoSyncEnabled ?? false,
+        autoSyncIntervalMinutes: currentSettings?.autoSyncIntervalMinutes ?? 5
       };
       
       console.log(`[Auth] Connected via Password to ${baseUrl}. Token present: ${!!res.token}, Type: ${res.tokenType}`);
@@ -213,7 +215,9 @@ async function handleConnect() {
         token: token,
         tokenType: defaultType,
         username: "api-token",
-        connected: true
+        connected: true,
+        autoSyncEnabled: currentSettings?.autoSyncEnabled ?? false,
+        autoSyncIntervalMinutes: currentSettings?.autoSyncIntervalMinutes ?? 5
       };
 
       console.log(`[Auth] Connected via API Token to ${baseUrl}. Type: ${defaultType}`);
@@ -267,7 +271,9 @@ async function handleDisconnect() {
     token: null,
     tokenType: "Token",
     username: null,
-    connected: false
+    connected: false,
+    autoSyncEnabled: currentSettings?.autoSyncEnabled ?? false,
+    autoSyncIntervalMinutes: currentSettings?.autoSyncIntervalMinutes ?? 5
   };
   await saveConnectorSettings(currentSettings);
   hbClient.setConfiguration("", null, "Token");
