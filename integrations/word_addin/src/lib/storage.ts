@@ -5,6 +5,7 @@ export interface ConnectorSettings {
   baseUrl: string;
   authType: "password" | "token";
   token: string | null;
+  tokenType: string | null;
   username: string | null;
   connected: boolean;
 }
@@ -13,6 +14,7 @@ const DEFAULT_SETTINGS: ConnectorSettings = {
   baseUrl: "",
   authType: "password",
   token: null,
+  tokenType: "Token",
   username: null,
   connected: false
 };
