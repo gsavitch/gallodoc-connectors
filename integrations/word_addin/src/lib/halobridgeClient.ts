@@ -15,12 +15,14 @@ export interface ConnectionInfo {
 export class HaloBridgeClient {
   private baseUrl: string | null = null;
   private token: string | null = null;
+  private tokenType: string = "Token";
 
   constructor() {}
 
-  setConfiguration(baseUrl: string, token: string | null) {
+  setConfiguration(baseUrl: string, token: string | null, tokenType: string = "Token") {
     this.baseUrl = baseUrl.replace(/\/$/, "");
     this.token = token;
+    this.tokenType = tokenType || "Token";
   }
 
   async testConnection(baseUrl: string): Promise<{ status: "ok" | "unauthorized" | "unreachable", message: string }> {
@@ -41,21 +43,33 @@ export class HaloBridgeClient {
       const response = await axios.post(`${cleanUrl}/api/word/auth/login/`, {
         username,
         password
+      }, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        }
       });
 
-      const { access_token, user, tenant } = response.data;
+      const { access_token, token_type, user, tenant } = response.data;
       
       this.token = access_token;
+      this.tokenType = token_type || "Token";
       this.baseUrl = cleanUrl;
 
       return {
         token: access_token,
-        user: { username: user.username, display_name: user.display_name },
-        tenant: { name: tenant.name }
+        tokenType: this.tokenType,
+        user: { 
+          username: user.email || user.username, 
+          display_name: user.display_name || user.username 
+        },
+        tenant: tenant ? { name: tenant.name } : undefined
       };
     } catch (error: any) {
+      const status = error.response?.status;
+      const detail = error.response?.data?.detail || error.response?.data?.error || error.message;
       console.error('Login Error:', error.response?.data || error.message);
-      throw new Error(error.response?.data?.message || error.response?.data?.error || "Login failed");
+      throw new Error(`Login failed${status ? ` (${status})` : ""}: ${detail}`);
     }
   }
 
@@ -76,7 +90,7 @@ export class HaloBridgeClient {
     try {
       const response = await axios.post(`${this.baseUrl}/api/word/gallodoc/save/`, payload, {
         headers: {
-          'Authorization': `Bearer ${this.token}`
+          'Authorization': `${this.tokenType} ${this.token}`
         }
       });
       return response.data;
