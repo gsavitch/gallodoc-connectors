@@ -115,7 +115,7 @@ function hydrateUI() {
   document.getElementById("tokenFields")?.classList.toggle("hidden", currentSettings.authType !== "token");
 
   if (currentSettings.connected && currentSettings.baseUrl) {
-    hbClient.setConfiguration(currentSettings.baseUrl, currentSettings.token);
+    hbClient.setConfiguration(currentSettings.baseUrl, currentSettings.token, currentSettings.tokenType || "Token");
   }
 }
 
@@ -159,23 +159,31 @@ async function handleConnect() {
         baseUrl,
         authType: "password",
         token: res.token,
+        tokenType: res.tokenType,
         username: res.user.display_name,
         connected: true
       };
+      
+      console.log(`[Auth] Connected via Password to ${baseUrl}. Token present: ${!!res.token}, Type: ${res.tokenType}`);
+
       // Clear password field immediately after use
       (document.getElementById("password") as HTMLInputElement).value = "";
     } else {
       const token = (document.getElementById("apiToken") as HTMLInputElement).value;
       if (!token) throw new Error("API Token required");
 
-      hbClient.setConfiguration(baseUrl, token);
+      const defaultType = "Token";
+      hbClient.setConfiguration(baseUrl, token, defaultType);
       currentSettings = {
         baseUrl,
         authType: "token",
         token: token,
+        tokenType: defaultType,
         username: "API Client",
         connected: true
       };
+
+      console.log(`[Auth] Connected via API Token to ${baseUrl}. Type: ${defaultType}`);
     }
 
     await saveConnectorSettings(currentSettings);
@@ -206,16 +214,17 @@ function updateUIForConnection() {
 }
 
 async function handleDisconnect() {
-  await clearConnectorSettings();
   const oldUrl = currentSettings.baseUrl;
   currentSettings = {
     baseUrl: oldUrl, // Preserve for convenience
-    authType: "password",
+    authType: currentSettings.authType,
     token: null,
+    tokenType: "Token",
     username: null,
     connected: false
   };
-  hbClient.setConfiguration("", null);
+  await saveConnectorSettings(currentSettings);
+  hbClient.setConfiguration("", null, "Token");
   updateUIForConnection();
   updateStatus("IDLE", "Disconnected from HaloBridge.");
 }
@@ -241,9 +250,27 @@ function updateUIForMode() {
 
 async function handleAction(action: "save" | "save_as" = "save") {
   const config = MODE_CONFIG[currentMode];
-  if (config.requiresLogin && !currentSettings.connected) {
-    updateStatus("ERROR", "Connection required for cloud sync.");
-    return;
+  
+  // Re-verify connection state from storage
+  const settings = await getConnectorSettings();
+  currentSettings = settings; // Update local state for consistency
+
+  if (config.requiresLogin) {
+    if (!settings.baseUrl) {
+      updateStatus("ERROR", "Connection required: missing HaloBridge Base URL.");
+      return;
+    }
+    if (!settings.token) {
+      updateStatus("ERROR", "Connection required: no auth token found.");
+      return;
+    }
+    if (!settings.connected) {
+      updateStatus("ERROR", "Connection required: click Connect first.");
+      return;
+    }
+    
+    // Ensure client is synchronized with storage
+    hbClient.setConfiguration(settings.baseUrl, settings.token, settings.tokenType || "Token");
   }
 
   if (action === "save_as" && !currentManifest) {
