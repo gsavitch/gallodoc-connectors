@@ -184,24 +184,51 @@ app.post('/api/word/auth/login/', (req, res) => {
   res.status(401).json({ error: "Invalid username or password" });
 });
 
+const WordReviewContextSchema = z.object({
+  tracked_changes_detected: z.boolean().nullable(),
+  comments_detected: z.boolean().nullable(),
+  unresolved_comments_count: z.number().nullable(),
+  document_protection: z.string().nullable(),
+  office_host: z.literal("Word"),
+  capture_method: z.literal("word_addin")
+});
+
+const WordAIContextSchema = z.object({
+  ai_assistance_detected: z.boolean().nullable(),
+  ai_signal_confidence: z.enum(["none", "low", "medium", "high"]),
+  ai_signal_sources: z.array(z.string()),
+  copilot_markers_detected: z.boolean().nullable(),
+  ai_mentions_in_comments: z.number().nullable(),
+  ai_mentions_in_metadata: z.number().nullable(),
+  connector_detection_notes: z.array(z.string())
+});
+
 // Word Connector Schema
 const WordSaveSchema = z.object({
-  mode: z.enum(['free_connected', 'enterprise_connected']),
-  document_name: z.string().min(1),
-  document_text: z.string().optional(),
-  ooxml: z.string().optional(),
-  save_action: z.enum(['save', 'save_as']).optional().default('save'),
-  document_id: z.string().optional(),
+  save_action: z.enum(['create', 'save', 'save_as']),
+  document_title: z.string().min(1),
+  mvp_document_id: z.string().optional(),
+  previous_mvp_document_id: z.string().optional(),
+  previous_gallodoc_id: z.string().optional(),
   source_document_id: z.string().optional(),
+  manifest: z.any().optional(),
+  word_ooxml: z.string().optional(),
+  text: z.string().optional(),
+  source_hash: z.string(),
+  timestamp: z.string().optional(),
+  connector: z.object({
+    name: z.string(),
+    version: z.string()
+  }),
   metadata: z.record(z.string(), z.any()).optional(),
-  source_app: z.string().default('microsoft_word'),
-  source_connector: z.string().default('halobridge_word_addin'),
-  tier_scope: z.enum(['limited', 'full']).optional(),
+  document_id: z.string().optional(), // accepted as alias for mvp_document_id
+  review_context: WordReviewContextSchema.optional(),
+  ai_context: WordAIContextSchema.optional(),
 });
 
 const WordSyncSchema = z.object({
   tenant_id: z.string(),
-  event_type: z.enum(['save', 'save_as', 'rename', 'open', 'manual_sync']),
+  event_type: z.enum(['save', 'save_as', 'rename', 'open', 'manual_sync', 'create']),
   current_filename: z.string(),
   previous_filename: z.string().optional(),
   word_file_identity: z.string(),
@@ -210,6 +237,8 @@ const WordSyncSchema = z.object({
   embedded_parent_doc_id: z.string().optional(),
   file_hash: z.string(),
   content_hash: z.string(),
+  review_context: WordReviewContextSchema.optional(),
+  ai_context: WordAIContextSchema.optional(),
   metadata: z.record(z.string(), z.any()).optional().default({}),
 });
 
@@ -255,12 +284,11 @@ app.post('/api/word/connector/sync/', async (req, res) => {
   }
 });
 
-// Word Connector Endpoint
+// Word Connector Save Endpoint
 app.post('/api/word/gallodoc/save/', async (req, res) => {
-  // Check for Bearer or Token
   const authHeader = req.headers.authorization;
   if (!authHeader || (!authHeader.startsWith('Bearer ') && !authHeader.startsWith('Token '))) {
-    return res.status(401).json({ error: "not_authenticated", message: "Bearer or Token required for connected modes." });
+    return res.status(401).json({ error: "not_authenticated", message: "Bearer or Token required for connected saves." });
   }
 
   const token = authHeader.split(' ')[1];
@@ -273,102 +301,94 @@ app.post('/api/word/gallodoc/save/', async (req, res) => {
   try {
     const data = WordSaveSchema.parse(req.body);
     
-    // Entitlement Check
-    if (data.mode === 'free_connected' && !authSession.entitlements.free_connected) {
-      return res.status(403).json({ error: "missing_entitlement", message: "Free mode not enabled for this user." });
-    }
-    if (data.mode === 'enterprise_connected' && !authSession.entitlements.enterprise_connected) {
-      return res.status(403).json({ error: "missing_entitlement", message: "Enterprise mode requires a higher subscription." });
-    }
-
-    if (!data.document_text && !data.ooxml) {
+    if (!data.text && !data.word_ooxml) {
       return res.status(400).json({ error: "missing_document_content", message: "No text or OOXML provided." });
     }
 
-    // Determine source material for hashing
-    const sourceContent = data.ooxml || data.document_text || data.document_name || "";
-    const sourceHash = crypto.createHash('sha256').update(sourceContent).digest('hex');
-
-    // Find or Create Document (bound to tenant)
-    let doc;
-    if (data.save_action === 'save_as' && data.source_document_id) {
-      // Create a NEW document linked to source
-      doc = {
-        id: uuidv4(),
-        name: `${data.document_name} (Copy)`,
+    // Resolve Identity using Identity Service
+    const syncPayload: WordConnectorSyncPayload = {
         tenant_id: authSession.tenant.id,
-        source_document_id: data.source_document_id,
-        created_at: new Date().toISOString(),
-      };
-      documents.push(doc);
-    } else if (data.document_id) {
-      doc = documents.find(d => d.id === data.document_id && d.tenant_id === authSession.tenant.id);
-    }
+        user_id: authSession.user.id,
+        event_type: data.save_action === 'create' ? 'create' : (data.save_action === 'save_as' ? 'save_as' : 'save'),
+        current_filename: data.document_title,
+        word_file_identity: (data as any).word_file_identity || (data.metadata?.original_path) || ("session_" + uuidv4()),
+        embedded_halobridge_doc_id: data.mvp_document_id || data.document_id || data.manifest?.halobridge_doc_id || data.manifest?.mvp_document_id,
+        embedded_parent_doc_id: data.previous_mvp_document_id || data.previous_gallodoc_id || data.source_document_id,
+        file_hash: data.source_hash,
+        content_hash: data.source_hash,
+        metadata: data.manifest || {}
+    };
 
+    const identity = wordIdentityService.resolveWordDocumentIdentity(syncPayload);
+    const docId = identity.halobridge_doc_id;
+
+    // Ensure document exists in our mock DB (identity service just returns IDs)
+    let doc = documents.find(d => d.id === docId);
     if (!doc) {
-      // Fallback or Initial Save
-      doc = documents.find(d => d.name === data.document_name && d.tenant_id === authSession.tenant.id);
-      if (!doc) {
         doc = {
-          id: uuidv4(),
-          name: data.document_name,
-          tenant_id: authSession.tenant.id,
-          created_at: new Date().toISOString(),
+            id: docId,
+            name: data.document_title,
+            tenant_id: authSession.tenant.id,
+            source_document_id: identity.halobridge_parent_doc_id,
+            created_at: identity.halobridge_created_at || new Date().toISOString()
         };
         documents.push(doc);
-      }
     }
 
-    // Determine tier scope based on mode if not provided
-    const tierScope = data.tier_scope || (data.mode === 'enterprise_connected' ? 'full' : 'limited');
-
     // Create New Immutable Version
-    const versionNumber = versions.filter(v => v.document_id === doc.id).length + 1;
+    const versionNumber = versions.filter(v => v.document_id === docId).length + 1;
     const version = {
       id: uuidv4(),
-      document_id: doc.id,
+      document_id: docId,
       version_number: versionNumber,
-      source_hash: sourceHash,
-      source_connector: data.source_connector,
-      connector_mode: data.mode,
-      tier_scope: tierScope,
+      source_hash: data.source_hash,
+      source_connector: data.connector.name,
+      connector_version: data.connector.version,
       user_id: authSession.user.id,
       tenant_id: authSession.tenant.id,
-      original_filename: data.document_name,
-      metadata: data.metadata || {},
+      original_filename: data.document_title,
+      metadata: { 
+          ...data.metadata,
+          ...identity.write_back_metadata
+      },
       created_at: new Date().toISOString(),
       submitted_at: new Date().toISOString(),
-      content_preview: data.document_text?.substring(0, 500),
     };
 
     versions.push(version);
 
-    // Enterprise Pipeline Simulation
-    let responseMessage = "Word document saved to HaloBridge as a governed GalloDoc version.";
-    let status = 'saved';
-    let processingStatus = 'pending_pipeline';
-    let processingUrl = null;
-
-    if (data.mode === 'enterprise_connected') {
-      status = 'processing';
-      processingStatus = 'active_review';
-      processingUrl = `/ops/documents/${doc.id}/word-control/`;
-      
-      setTimeout(() => {
-        console.log(`[PIPELINE] Processing enterprise version ${version.id} for user ${authSession.user.username}`);
-      }, 100);
+    // Determine simulated statuses based on version number and review context
+    let reviewStatus = versionNumber > 5 ? "approved" : "draft";
+    if (data.review_context?.comments_detected || data.review_context?.tracked_changes_detected) {
+        reviewStatus = "Redlines Present";
     }
 
+    const aiAssistanceStatus = data.ai_context?.ai_assistance_detected ? "detected" : "unknown";
+    const aiConfidence = data.ai_context?.ai_signal_confidence || "none";
+    const humanReviewRequired = data.ai_context?.ai_assistance_detected || versionNumber < 3;
+
+    // Normalize Response
     res.status(201).json({
-      document_id: doc.id,
+      mvp_document_id: docId,
+      halobridge_doc_id: docId,
+      gallodoc_id: docId, // legacy alias
       version_id: version.id,
       version_number: versionNumber,
-      status,
-      processing_status: processingStatus,
-      mode: data.mode,
-      tier_scope: tierScope,
-      message: responseMessage,
-      processing_url: processingUrl
+      review_status: reviewStatus,
+      approval_status: reviewStatus === "approved" ? "approved" : "pending",
+      verifyiq_status: versionNumber > 2 ? "passed" : "active",
+      himc_status: versionNumber > 3 ? "passed" : "pending",
+      release_ready: versionNumber > 7 && reviewStatus === "approved",
+      ai_assistance_status: aiAssistanceStatus,
+      ai_signal_confidence: aiConfidence,
+      human_review_required: humanReviewRequired,
+      canonical_workspace_url: `/ops/documents/${docId}/`,
+      word_control_url: `/ops/documents/${docId}/word-control/`,
+      halobridge_last_synced_at: version.created_at,
+      halobridge_version_number: versionNumber,
+      halobridge_file_fingerprint: data.source_hash,
+      halobridge_parent_doc_id: identity.halobridge_parent_doc_id,
+      write_back_metadata: identity.write_back_metadata
     });
 
   } catch (error: any) {
@@ -376,7 +396,7 @@ app.post('/api/word/gallodoc/save/', async (req, res) => {
       return res.status(400).json({ error: "validation_error", issues: error.issues });
     }
     console.error('Save Error:', error);
-    res.status(500).json({ error: "internal_error", message: "Failed to save document version." });
+    res.status(500).json({ error: "internal_error", message: error.message || "Failed to save document." });
   }
 });
 
