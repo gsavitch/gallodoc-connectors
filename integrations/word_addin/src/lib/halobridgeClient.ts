@@ -28,12 +28,15 @@ export class HaloBridgeClient {
   async testConnection(baseUrl: string): Promise<{ status: "ok" | "unauthorized" | "unreachable", message: string }> {
     const cleanUrl = baseUrl.replace(/\/$/, "");
     try {
-      const response = await axios.get(`${cleanUrl}/api/health/`, { timeout: 5000 });
+      console.log(`[Diagnostic] Testing connection to: ${cleanUrl}/api/health/`);
+      const response = await axios.get(`${cleanUrl}/api/health/`, { timeout: 10000 });
       if (response.status === 200) return { status: "ok", message: "Server Reachable" };
       return { status: "unreachable", message: `Server returned ${response.status}` };
     } catch (error: any) {
       if (error.response?.status === 401) return { status: "unauthorized", message: "Unauthorized" };
-      return { status: "unreachable", message: "Network error or invalid URL" };
+      const detail = error.response?.data?.message || error.response?.data?.error || error.message;
+      console.error('[Diagnostic] Connection Test Failed:', error);
+      return { status: "unreachable", message: `Connection failed: ${detail || "Network error"}` };
     }
   }
 
@@ -87,19 +90,36 @@ export class HaloBridgeClient {
       throw new Error("Add-in is not connected to a HaloBridge instance.");
     }
 
+    const endpoint = `${this.baseUrl}/api/word/gallodoc/save/`;
+    console.log(`[Diagnostic] Syncing to: ${endpoint}`);
+    console.log(`[Diagnostic] Auth Header: ${this.tokenType} [REDACTED]`);
+
     try {
-      const response = await axios.post(`${this.baseUrl}/api/word/gallodoc/save/`, payload, {
+      const response = await axios.post(endpoint, payload, {
         headers: {
-          'Authorization': `${this.tokenType} ${this.token}`
-        }
+          'Authorization': `${this.tokenType} ${this.token}`,
+          'Content-Type': 'application/json'
+        },
+        timeout: 30000 // Extended timeout for document processing
       });
       return response.data;
     } catch (error: any) {
       if (error.response?.status === 401) {
         throw new Error("AUTH_EXPIRED");
       }
-      console.error('HaloBridge Sync Error:', error.response?.data || error.message);
-      throw new Error(error.response?.data?.message || error.response?.data?.error || "Sync failed");
+      const status = error.response?.status;
+      const detail = error.response?.data?.message || error.response?.data?.error || error.message;
+      console.error('[Diagnostic] HaloBridge Sync Error:', {
+        status,
+        data: error.response?.data,
+        message: error.message
+      });
+      
+      if (!status) {
+        throw new Error(`Network failure: ${error.message}. Check if ${this.baseUrl} is reachable and allows CORS from Office.`);
+      }
+
+      throw new Error(`Sync failed (${status}): ${detail}`);
     }
   }
 }
