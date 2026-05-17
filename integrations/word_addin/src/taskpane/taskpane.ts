@@ -68,8 +68,15 @@ async function initializeTaskPane() {
   btnDisconnect.addEventListener("click", handleDisconnect);
 
   const btnSaveAs = document.getElementById("btnSaveAs") as HTMLButtonElement;
+  const btnToggleAutoSyncSection = document.getElementById("btnToggleAutoSyncSection") as HTMLButtonElement;
+
   btnSaveAs.addEventListener("click", () => handleAction("save_as"));
   btnAction.addEventListener("click", () => handleAction("save"));
+
+  btnToggleAutoSyncSection.addEventListener("click", () => {
+    const content = document.getElementById("autoSyncContent");
+    content?.classList.toggle("hidden");
+  });
 
   const toggleAutoSync = document.getElementById("toggleAutoSync") as HTMLButtonElement;
   const autoSyncInterval = document.getElementById("autoSyncInterval") as HTMLSelectElement;
@@ -115,7 +122,10 @@ function updateUIForManifest() {
     // Handle Open in HaloBridge button
     if (currentManifest.word_control_url) {
       btnOpenHB.classList.remove("hidden");
-      btnOpenHB.onclick = () => window.open(currentManifest!.word_control_url!, "_blank");
+      btnOpenHB.onclick = (e) => {
+        e.preventDefault();
+        window.open(currentManifest!.word_control_url!, "_blank");
+      };
     } else {
       btnOpenHB.classList.add("hidden");
     }
@@ -174,58 +184,72 @@ async function handleTestConnection() {
 async function handleConnect() {
   const baseUrl = (document.getElementById("baseUrl") as HTMLInputElement).value;
   const authType = (document.getElementById("authMode") as HTMLSelectElement).value as "password" | "token";
+  const passwordInput = document.getElementById("password") as HTMLInputElement;
 
   if (!baseUrl) {
-    updateStatus("ERROR", "Base URL is required to connect.");
+    updateStatus("ERROR", "Base URL required.");
     return;
   }
 
-  updateStatus("PROCESSING", "Connecting to HaloBridge...");
+  updateStatus("PROCESSING", "Connecting...");
 
   try {
     if (authType === "password") {
       const username = (document.getElementById("username") as HTMLInputElement).value;
-      const password = (document.getElementById("password") as HTMLInputElement).value;
+      const password = passwordInput.value;
 
       if (!username || !password) throw new Error("Credentials required");
 
       const res = await hbClient.login(baseUrl, username, password);
+      
+      // Update settings with actual values from login
       currentSettings = {
         baseUrl,
         authType: "password",
         token: res.token,
         tokenType: res.tokenType || "Token",
         username: res.user.display_name || res.user.username || username,
-        connected: true,
+        connected: !!res.token,
         autoSyncEnabled: currentSettings?.autoSyncEnabled ?? false,
         autoSyncIntervalMinutes: currentSettings?.autoSyncIntervalMinutes ?? 5
       };
       
-      console.log(`[Auth] Connected via Password to ${baseUrl}. Token present: ${!!res.token}, Type: ${res.tokenType}`);
-
-      // Clear password field immediately after use
-      (document.getElementById("password") as HTMLInputElement).value = "";
+      // Clear password field immediately
+      passwordInput.value = "";
+      
+      console.log(`[Auth] Connected via Password to ${baseUrl}. Token: ${!!res.token}`);
     } else {
       const token = (document.getElementById("apiToken") as HTMLInputElement).value;
       if (!token) throw new Error("API Token required");
 
       const defaultType = "Token";
       hbClient.setConfiguration(baseUrl, token, defaultType);
+      
+      // Verification test for token
+      const test = await hbClient.testConnection(baseUrl);
+      if (test.status === "unreachable") throw new Error("Server unreachable with this token.");
+
       currentSettings = {
         baseUrl,
         authType: "token",
         token: token,
         tokenType: defaultType,
-        username: "api-token",
+        username: "API Token User",
         connected: true,
         autoSyncEnabled: currentSettings?.autoSyncEnabled ?? false,
         autoSyncIntervalMinutes: currentSettings?.autoSyncIntervalMinutes ?? 5
       };
 
-      console.log(`[Auth] Connected via API Token to ${baseUrl}. Type: ${defaultType}`);
+      console.log(`[Auth] Connected via API Token to ${baseUrl}`);
     }
 
     await saveConnectorSettings(currentSettings);
+    
+    // Synchronize client
+    if (currentSettings.token) {
+        hbClient.setConfiguration(currentSettings.baseUrl, currentSettings.token, currentSettings.tokenType || "Token");
+    }
+
     updateStatus("SUCCESS", `Connected to ${baseUrl}`);
     updateUIForConnection();
   } catch (error: any) {
@@ -240,7 +264,9 @@ function updateUIForConnection() {
   const connectedUrl = document.getElementById("connectedUrl") as HTMLParagraphElement;
   const badgeConn = document.getElementById("badgeConn") as HTMLElement;
 
-  if (currentSettings.connected) {
+  const isActuallyConnected = currentSettings.connected && !!currentSettings.token && !!currentSettings.baseUrl;
+
+  if (isActuallyConnected) {
     loginForm.classList.add("hidden");
     connectedState.classList.remove("hidden");
     connectedUser.innerText = currentSettings.username || "Authenticated";
@@ -248,21 +274,19 @@ function updateUIForConnection() {
     
     if (badgeConn) {
       badgeConn.innerText = "Connected";
-      badgeConn.className = "px-2 py-0.5 text-[9px] font-bold uppercase bg-green-100 text-green-700";
+      badgeConn.className = "px-2 py-0.5 text-[9px] font-bold uppercase bg-green-100 text-green-700 rounded-full";
     }
-    
-    updateUIForMode(); 
   } else {
     loginForm.classList.remove("hidden");
     connectedState.classList.add("hidden");
     
     if (badgeConn) {
-      badgeConn.innerText = "Offline";
-      badgeConn.className = "px-2 py-0.5 text-[9px] font-bold uppercase bg-red-100 text-red-700";
+      badgeConn.innerText = "Not Connected";
+      badgeConn.className = "px-2 py-0.5 text-[9px] font-bold uppercase bg-gray-100 text-gray-500 rounded-full";
     }
-    
-    updateUIForMode();
   }
+  
+  updateUIForMode();
 }
 
 async function handleDisconnect() {
@@ -295,7 +319,7 @@ function updateUIForAutoSync() {
     toggleAutoSync.className = "w-10 h-5 bg-green-500 rounded-full relative transition-colors focus:outline-none";
     toggleKnob.className = "absolute right-1 top-1 w-3 h-3 bg-white rounded-full transition-transform";
     badgeAutoSync.innerText = "ACTIVE";
-    badgeAutoSync.className = "px-2 py-0.5 text-[9px] font-bold uppercase bg-green-100 text-green-700";
+    badgeAutoSync.className = "px-2 py-0.5 text-[9px] font-bold uppercase bg-green-100 text-green-700 rounded-full";
     
     if (!currentManifest) {
       autoSyncStatus.innerText = "Save once to HaloBridge to enable.";
@@ -306,7 +330,7 @@ function updateUIForAutoSync() {
     toggleAutoSync.className = "w-10 h-5 bg-gray-300 rounded-full relative transition-colors focus:outline-none";
     toggleKnob.className = "absolute left-1 top-1 w-3 h-3 bg-white rounded-full transition-transform";
     badgeAutoSync.innerText = "OFF";
-    badgeAutoSync.className = "px-2 py-0.5 text-[9px] font-bold uppercase bg-gray-100 text-gray-500";
+    badgeAutoSync.className = "px-2 py-0.5 text-[9px] font-bold uppercase bg-gray-100 text-gray-500 rounded-full";
     autoSyncStatus.innerText = "Auto-sync disabled.";
   }
 
@@ -400,27 +424,28 @@ function updateUIForMode() {
   
   if (badgeMode) {
     badgeMode.innerText = currentMode === ConnectorMode.Local ? "Local" : "Cloud";
-    badgeMode.className = `px-2 py-0.5 text-[9px] font-bold uppercase ${currentMode === ConnectorMode.Local ? "bg-gray-200 text-gray-700" : "bg-blue-100 text-blue-700"}`;
+    badgeMode.classList.add("hidden"); // We are removing badgeMode from HTML in redesign
   }
 
   if (btnAction) {
     if (currentMode === ConnectorMode.Local) {
         btnAction.innerText = "Create Local GalloDoc";
     } else {
-        btnAction.innerText = currentManifest ? "Save Version to HaloBridge" : "Save to HaloBridge";
+        btnAction.innerText = currentManifest ? "Save Version" : "Save to HaloBridge";
     }
   }
 
   if (modeDescription) modeDescription.innerText = config.description;
   
   if (config.requiresLogin) {
-    if (currentSettings.connected) {
+    const isConn = currentSettings.connected && !!currentSettings.token;
+    if (isConn) {
       updateStatus("READY", `Target: ${currentSettings.baseUrl}`);
     } else {
-      updateStatus("AUTH", "Authentication required for Cloud Sync.");
+      updateStatus("AUTH", "Connect to sync to cloud.");
     }
   } else {
-    updateStatus("IDLE", "Local mode: No document data will leave your device.");
+    updateStatus("IDLE", "Local only — no upload.");
   }
 }
 
