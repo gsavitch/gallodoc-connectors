@@ -9,29 +9,36 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=JetBrains+Mono&display=swap" rel="stylesheet">
 </head>
 <body class="bg-[#E4E3E0] text-[#141414] font-sans m-0 p-0 overflow-x-hidden">
-    <div id="container" class="flex flex-col min-h-screen p-6">
+    <div id="container" class="flex flex-col min-h-screen p-4 gap-4">
         <!-- Header -->
-        <header class="flex flex-col gap-1 mb-6">
+        <header class="flex flex-col gap-0.5 border-b border-black pb-4">
             <h1 class="text-2xl font-bold uppercase tracking-tighter">HaloBridge</h1>
-            <p class="text-[10px] font-mono opacity-50 uppercase tracking-widest">Word-to-GalloDoc Connector</p>
+            <p class="text-[10px] font-mono opacity-60 uppercase tracking-widest">Governed Word-to-GalloDoc control</p>
         </header>
 
-        <!-- Connection Panel -->
-        <section id="connectionPanel" class="mb-6 border-b border-[#141414] pb-6">
+        <!-- Status Badges Bar -->
+        <div id="badgeContainer" class="flex flex-wrap gap-2">
+            <span id="badgeMode" class="px-2 py-0.5 text-[9px] font-bold uppercase bg-gray-200 text-gray-700">Checking...</span>
+            <span id="badgeConn" class="px-2 py-0.5 text-[9px] font-bold uppercase bg-red-100 text-red-700">Offline</span>
+            <span id="badgeSync" class="hidden px-2 py-0.5 text-[9px] font-bold uppercase bg-green-100 text-green-700">Synced</span>
+        </div>
+
+        <!-- Connection Card -->
+        <section id="connectionPanel" class="bg-white p-4 border border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
             <div id="loginForm" class="">
-                <h2 class="text-[10px] uppercase font-bold mb-4">Connection Settings</h2>
+                <h2 class="text-[10px] uppercase font-black mb-3 tracking-wider">Connection Settings</h2>
                 
                 <div class="flex flex-col gap-3">
                     <!-- Base URL -->
                     <div class="flex flex-col gap-1">
-                        <label class="text-[9px] uppercase font-bold opacity-70">HaloBridge Base URL</label>
-                        <input id="baseUrl" type="text" placeholder="e.g. https://qa.halobridge.ai" class="bg-white border border-[#141414] p-2 text-xs font-mono" />
+                        <label class="text-[9px] uppercase font-bold opacity-60">HaloBridge Base URL</label>
+                        <input id="baseUrl" type="text" placeholder="e.g. https://qa.halobridge.ai" class="bg-[#F8F8F8] border border-gray-300 p-2 text-xs font-mono focus:border-black outline-none transition-all" />
                     </div>
 
                     <!-- Auth Mode -->
                     <div class="flex flex-col gap-1">
-                        <label class="text-[9px] uppercase font-bold opacity-70">Authentication Mode</label>
-                        <select id="authMode" class="bg-white border border-[#141414] p-2 text-xs font-bold uppercase tracking-tight appearance-none cursor-pointer">
+                        <label class="text-[9px] uppercase font-bold opacity-60">Authentication Mode</label>
+                        <select id="authMode" class="bg-[#F8F8F8] border border-gray-300 p-2 text-xs font-bold uppercase tracking-tight appearance-none cursor-pointer focus:border-black outline-none">
                             <option value="password">Username / Password</option>
                             <option value="token">API Token</option>
                         </select>
@@ -39,94 +46,134 @@
 
                     <!-- Password Fields -->
                     <div id="passwordFields" class="flex flex-col gap-2">
-                        <input id="username" type="text" placeholder="Username" class="bg-white border border-[#141414] p-2 text-xs font-mono" />
-                        <input id="password" type="password" placeholder="Password" class="bg-white border border-[#141414] p-2 text-xs font-mono" />
+                        <input id="username" type="text" placeholder="Username" class="bg-[#F8F8F8] border border-gray-300 p-2 text-xs font-mono" />
+                        <input id="password" type="password" placeholder="Password" class="bg-[#F8F8F8] border border-gray-300 p-2 text-xs font-mono" />
                     </div>
 
                     <!-- Token Field -->
                     <div id="tokenFields" class="hidden flex flex-col gap-2">
-                        <input id="apiToken" type="text" placeholder="API Token" class="bg-white border border-[#141414] p-2 text-xs font-mono" />
+                        <input id="apiToken" type="text" placeholder="API Token" class="bg-[#F8F8F8] border border-gray-300 p-2 text-xs font-mono" />
                     </div>
 
-                    <div class="flex gap-2">
-                        <button id="btnConnect" class="flex-1 bg-[#141414] text-[#E4E3E0] p-2 text-xs font-bold uppercase hover:bg-opacity-90">Connect</button>
-                        <button id="btnTest" class="border border-[#141414] px-4 py-2 text-[9px] font-bold uppercase hover:bg-[#141414] hover:text-[#E4E3E0]">Test</button>
+                    <div class="flex gap-2 mt-1">
+                        <button id="btnConnect" class="flex-1 bg-black text-white p-2 text-xs font-bold uppercase hover:bg-gray-800 transition-colors">Connect</button>
+                        <button id="btnTest" class="border border-black px-4 py-2 text-[9px] font-bold uppercase hover:bg-black hover:text-white transition-all">Test</button>
                     </div>
                 </div>
             </div>
             
             <div id="connectedState" class="hidden">
-                <div class="flex justify-between items-start mb-2">
+                <div class="flex justify-between items-start">
                     <div>
-                        <h2 class="text-[10px] uppercase font-bold text-green-700">Connected</h2>
-                        <p id="connectedUser" class="text-xs font-bold"></p>
-                        <p id="connectedUrl" class="text-[9px] font-mono opacity-50 truncate max-w-[150px]"></p>
+                        <h2 class="text-[10px] uppercase font-black text-green-700 mb-1">Authenticated</h2>
+                        <p id="connectedUser" class="text-sm font-bold truncate"></p>
+                        <p id="connectedUrl" class="text-[9px] font-mono opacity-50 truncate max-w-[180px]"></p>
                     </div>
-                    <button id="btnDisconnect" class="text-[10px] font-bold uppercase border-b border-[#141414] hover:opacity-50">Disconnect</button>
+                    <button id="btnDisconnect" class="text-[9px] font-bold uppercase border-b border-black hover:opacity-50 transition-opacity">Sign Out</button>
                 </div>
             </div>
         </section>
 
-        <!-- Mode Selector -->
-        <section class="mb-4">
-            <label class="text-[10px] uppercase font-bold mb-2 block">Connection Mode</label>
-            <select id="modeSelector" class="w-full bg-white border border-[#141414] p-3 text-sm font-bold appearance-none cursor-pointer">
-                <option value="local_open_source">Local / Open Source</option>
-                <option value="free_connected">Free Connected</option>
-                <option value="enterprise_connected">Enterprise Connected</option>
-            </select>
-            <p id="modeDescription" class="text-[11px] mt-2 italic opacity-70 leading-relaxed"></p>
-        </section>
+        <!-- Mode & Status Card -->
+        <section class="bg-white p-4 border border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+            <div class="mb-4">
+                <label class="text-[10px] uppercase font-black mb-2 block tracking-wider">Document Details</label>
+                <div class="flex flex-col gap-1 mb-3">
+                    <label class="text-[9px] uppercase font-bold opacity-60">Display Title (HaloBridge)</label>
+                    <input id="docTitle" type="text" placeholder="e.g. Project Scope v1" class="bg-[#F8F8F8] border border-gray-300 p-2 text-xs font-bold focus:border-black outline-none transition-all" />
+                </div>
 
-        <!-- GalloDoc Document Status -->
-        <section id="docStatusPanel" class="mb-4 p-3 border border-[#141414] bg-[#F0EFED] hidden">
-            <h2 class="text-[10px] uppercase font-bold mb-2">GalloDoc Status</h2>
-            <div class="flex flex-col gap-1">
-                <p class="text-[9px] flex justify-between"><span>GalloDoc ID:</span> <span id="stDocId" class="font-mono truncate max-w-[120px]">Not Linked</span></p>
-                <p class="text-[9px] flex justify-between"><span>Version:</span> <span id="stVersion" class="font-mono">-</span></p>
-                <p class="text-[9px] flex justify-between"><span>Review Status:</span> <span id="stReview" class="font-bold uppercase">Unknown</span></p>
-                <p class="text-[8px] opacity-50 mt-1 italic">Last sync: <span id="stLastSync">Never</span></p>
+                <label class="text-[10px] uppercase font-black mb-2 block tracking-wider">Connector Mode</label>
+                <select id="modeSelector" class="w-full bg-[#F8F8F8] border border-gray-300 p-2 text-xs font-bold appearance-none cursor-pointer focus:border-black outline-none">
+                    <option value="local_open_source">Local Mode (No Sync)</option>
+                    <option value="free_connected">Free Connected</option>
+                    <option value="enterprise_connected">Enterprise Connected</option>
+                </select>
+                <p id="modeDescription" class="text-[10px] mt-2 italic opacity-60 leading-tight"></p>
+            </div>
+
+            <!-- GalloDoc Status Sub-Card -->
+            <div id="docStatusPanel" class="p-3 border border-gray-100 bg-[#FBFBFB] hidden rounded-sm group">
+                <h2 class="text-[9px] uppercase font-bold mb-2 opacity-50">Document Registry</h2>
+                <div class="flex flex-col gap-1.5">
+                    <p class="text-[10px] flex justify-between"><span>Registry ID:</span> <span id="stDocId" class="font-mono text-[9px] truncate ml-2">Not Linked</span></p>
+                    <p class="text-[10px] flex justify-between"><span>Version:</span> <span id="stVersion" class="font-mono ml-2">-</span></p>
+                    <p class="text-[10px] flex justify-between"><span>Governance:</span> <span id="stReview" class="font-bold uppercase ml-2">Unknown</span></p>
+                    <div class="flex justify-between items-center mt-1 pt-1 border-t border-gray-100">
+                        <span id="stLastSync" class="text-[8px] opacity-40 italic">Last sync: Never</span>
+                        <button id="btnOpenHB" class="hidden text-[9px] font-bold text-blue-600 hover:underline">Open in HaloBridge</button>
+                    </div>
+                </div>
             </div>
         </section>
 
-        <!-- Status Panel -->
-        <div id="statusPanel" class="border border-[#141414] p-4 mb-8 bg-white bg-opacity-50">
-            <div class="flex justify-between items-center mb-2">
-                <span class="text-[10px] uppercase font-bold">Status</span>
-                <span id="connectionStatus" class="text-[10px] font-mono text-green-600">IDLE</span>
+        <!-- Auto-sync Card -->
+        <section id="autoSyncPanel" class="bg-white p-4 border border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+            <div class="flex justify-between items-center mb-3">
+                <h2 class="text-[10px] uppercase font-black tracking-wider">Auto-sync (Governed)</h2>
+                <div id="badgeAutoSync" class="px-2 py-0.5 text-[9px] font-bold uppercase bg-gray-100 text-gray-500">OFF</div>
             </div>
-            <p id="statusMessage" class="text-xs font-mono opacity-60">Ready to ingest document.</p>
-        </div>
+            
+            <div class="flex flex-col gap-3">
+                <div class="flex items-center justify-between">
+                    <label class="text-[11px] font-medium">Enable Auto-sync</label>
+                    <button id="toggleAutoSync" class="w-10 h-5 bg-gray-300 rounded-full relative transition-colors focus:outline-none">
+                        <div id="toggleKnob" class="absolute left-1 top-1 w-3 h-3 bg-white rounded-full transition-transform"></div>
+                    </button>
+                </div>
 
-        <!-- Actions -->
-        <div class="flex flex-col gap-3 mt-auto">
-            <button id="btnAction" class="bg-[#141414] text-[#E4E3E0] p-4 text-sm font-bold uppercase hover:bg-opacity-90 transition-all flex items-center justify-center gap-2">
-                Save to HaloBridge
+                <div class="flex flex-col gap-1">
+                    <label class="text-[9px] uppercase font-bold opacity-60">Sync Interval (Minutes)</label>
+                    <select id="autoSyncInterval" class="bg-[#F8F8F8] border border-gray-300 p-2 text-xs font-bold appearance-none cursor-pointer focus:border-black outline-none">
+                        <option value="2">2 Minutes</option>
+                        <option value="5">5 Minutes</option>
+                        <option value="10">10 Minutes</option>
+                    </select>
+                </div>
+
+                <div id="autoSyncStatus" class="bg-[#FBFBFB] p-2 border border-gray-100 text-[9px] text-gray-500 italic">
+                    Ready to schedule.
+                </div>
+            </div>
+        </section>
+
+        <!-- Result/Log Card -->
+        <section id="statusPanel" class="bg-[#F8F8F8] border border-dashed border-gray-400 p-3">
+            <div class="flex justify-between items-center mb-1">
+                <span class="text-[9px] uppercase font-bold opacity-50">Last Result</span>
+                <span id="connectionStatus" class="text-[9px] font-mono px-1 bg-gray-200">IDLE</span>
+            </div>
+            <p id="statusMessage" class="text-[10px] font-mono leading-tight">System ready.</p>
+        </section>
+
+        <!-- Main Actions Container -->
+        <div class="flex flex-col gap-2 mt-auto pt-4">
+            <button id="btnAction" class="bg-black text-white p-4 text-xs font-black uppercase hover:bg-gray-800 transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,0.2)] active:translate-y-1 active:shadow-none">
+                Create Local GalloDoc
             </button>
             
-            <button id="btnSaveAs" class="hidden border border-[#141414] p-3 text-xs font-bold uppercase hover:bg-[#141414] hover:text-[#E4E3E0] transition-all">
+            <button id="btnSaveAs" class="hidden border border-black p-3 text-[11px] font-bold uppercase hover:bg-black hover:text-white transition-all">
                 Save As New GalloDoc
             </button>
 
-            <button id="btnView" class="hidden border border-[#141414] p-3 text-xs font-bold uppercase hover:bg-[#141414] hover:text-[#E4E3E0] transition-all">
-                View Last Result
+            <button id="btnView" class="hidden border border-gray-300 p-2 text-[10px] font-bold uppercase opacity-50 hover:opacity-100 transition-all">
+                Inspect Raw Response
             </button>
         </div>
 
-        <!-- Trust Note -->
-        <footer class="mt-8 pt-8 border-t border-[#141414] border-opacity-10 text-[10px] text-center opacity-50">
-            Local mode does not upload your document.<br>Connected modes require HaloBridge login.
-        </footer>
-
-        <!-- Result Modal (Hidden by default) -->
-        <div id="resultOverlay" class="fixed inset-0 bg-[#141414] bg-opacity-90 hidden flex flex-col p-6 z-50">
-            <div class="flex justify-between items-center mb-4 text-[#E4E3E0]">
-                <h3 class="font-bold uppercase">GalloDoc Result</h3>
-                <button id="btnCloseModal" class="text-xl font-bold">&times;</button>
+        <!-- Result Modal -->
+        <div id="resultOverlay" class="fixed inset-0 bg-black bg-opacity-95 hidden flex flex-col p-6 z-50">
+            <div class="flex justify-between items-center mb-4 text-white">
+                <h3 class="font-bold uppercase text-sm tracking-widest">GalloDoc Response</h3>
+                <button id="btnCloseModal" class="text-2xl font-bold leading-none">&times;</button>
             </div>
-            <pre id="resultOutput" class="flex-1 bg-black text-green-400 p-4 font-mono text-[10px] overflow-auto border border-[#E4E3E0] border-opacity-20"></pre>
-            <button id="btnCopy" class="mt-4 bg-[#E4E3E0] text-[#141414] p-3 text-xs font-bold uppercase">Copy to Clipboard</button>
+            <pre id="resultOutput" class="flex-1 bg-black text-green-400 p-4 font-mono text-[10px] overflow-auto border border-gray-800"></pre>
+            <button id="btnCopy" class="mt-4 bg-white text-black p-3 text-xs font-bold uppercase hover:bg-gray-200 transition-colors">Copy to Clipboard</button>
         </div>
+
+        <footer class="mt-4 text-[8px] text-center opacity-30 uppercase tracking-tighter">
+            &copy; 2026 HaloBridge Governance &bull; Confidential
+        </footer>
     </div>
 </body>
 </html>
