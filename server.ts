@@ -159,10 +159,10 @@ const WordSaveSchema = z.object({
 
 // Word Connector Endpoint
 app.post('/api/word/gallodoc/save/', async (req, res) => {
-  // Check for Bearer Token
+  // Check for Bearer or Token
   const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ error: "not_authenticated", message: "Bearer token required for connected modes." });
+  if (!authHeader || (!authHeader.startsWith('Bearer ') && !authHeader.startsWith('Token '))) {
+    return res.status(401).json({ error: "not_authenticated", message: "Bearer or Token required for connected modes." });
   }
 
   const token = authHeader.split(' ')[1];
