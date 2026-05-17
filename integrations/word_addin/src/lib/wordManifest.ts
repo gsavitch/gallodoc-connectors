@@ -3,6 +3,7 @@
 export interface GalloDocManifest {
   gallodoc_schema: string;
   mvp_document_id: string;
+  document_name?: string;
   latest_version_id: string;
   latest_version_number: number;
   word_control_url?: string;
@@ -65,11 +66,13 @@ export async function clearGalloDocManifest(): Promise<void> {
 export function buildManifestFromSaveResponse(
   response: any, 
   sourceHash: string, 
-  existingManifest?: GalloDocManifest | null
+  existingManifest?: GalloDocManifest | null,
+  documentName?: string
 ): GalloDocManifest {
   return {
     gallodoc_schema: "gallodoc.word_manifest.v1",
     mvp_document_id: response.document_id,
+    document_name: documentName || response.document_name || existingManifest?.document_name,
     latest_version_id: response.version_id,
     latest_version_number: response.version_number,
     word_control_url: response.processing_url,
