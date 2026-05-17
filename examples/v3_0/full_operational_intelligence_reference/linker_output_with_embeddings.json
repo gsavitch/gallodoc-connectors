@@ -1,0 +1,13 @@
+{
+  "linker_run_id": "link_run_def",
+  "method": "semantic_embedding_match",
+  "candidates": [
+    {
+      "source_doc_id": "inv_88291",
+      "target_doc_id": "emp_007",
+      "relationship_type": "invoice_to_employee_approver",
+      "embedding_distance": 0.045,
+      "status": "suggested"
+    }
+  ]
+}
