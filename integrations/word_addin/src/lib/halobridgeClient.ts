@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { ConnectorMode } from './modeConfig';
+import { WordConnectorSyncPayload, WordConnectorSyncResponse } from '../../../../src/types/wordConnector';
 
 export interface ConnectionInfo {
   baseUrl: string;
@@ -154,6 +155,30 @@ export class HaloBridgeClient {
       return response.data;
     } catch (error: any) {
       this.handleDetailedError('Save', error);
+      throw error;
+    }
+  }
+
+  async syncDocument(payload: WordConnectorSyncPayload): Promise<WordConnectorSyncResponse> {
+    if (!this.baseUrl || !this.token) {
+      throw new Error("Add-in is not connected to a HaloBridge instance.");
+    }
+
+    const endpoint = `${this.baseUrl}/api/word/connector/sync/`;
+    console.debug(`[Diagnostic] Identity sync request to: ${endpoint}`);
+
+    try {
+      const response = await axios.post(endpoint, payload, {
+        headers: {
+          'Authorization': `${this.tokenType} ${this.token}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        timeout: 20000 
+      });
+      return response.data;
+    } catch (error: any) {
+      this.handleDetailedError('IdentitySync', error);
       throw error;
     }
   }
