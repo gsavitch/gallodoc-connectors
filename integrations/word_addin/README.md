@@ -2,36 +2,52 @@
 
 This add-in provides a 3-tier bridge between Microsoft Word and the GalloDoc ecosystem.
 
-## Development & Build
+## Installation & Setup
 
-### Prerequisites
-- Node.js and npm
-- Microsoft Word (Desktop or Online)
+For a streamlined setup on Windows, use the provided PowerShell installer:
 
-### Installation
-```bash
-cd integrations/word_addin
-npm install
+```powershell
+./scripts/install-word-connector.ps1
 ```
 
-### Build
-To generate a production-ready build in the `dist` folder:
-```bash
-npm run build
-```
+This script handles dependency installation, dev certificate setup, and a full build.
 
-### Local Development
-To start the dev server over HTTPS (required by Office):
-```bash
-npm start
-```
-By default, the server runs at `https://localhost:3000`.
+### Manual Setup
+1. **Install Dependencies**:
+   ```bash
+   cd integrations/word_addin
+   npm install
+   ```
+2. **Dev Certificates**:
+   ```bash
+   npx office-addin-dev-certs install
+   ```
+3. **Start Dev Server**:
+   ```bash
+   npm start
+   ```
+
+## Local Development
+By default, the server runs at `https://localhost:3000`. Office add-ins **require** HTTPS. 
 
 ### Sideloading in Word
 1. Trust the local development certificate if prompted.
-2. Open Word.
-3. Go to `Insert` -> `My Add-ins`.
-4. Select `Upload My Add-in` and choose the `manifest.xml` file from this directory.
+2. Open Word Desktop.
+3. Run: `npx office-addin-debugging start manifest.xml desktop`
+
+## Production Deployment
+
+When you are ready to move from `localhost` to production:
+
+1. **Host Assets**: 
+   Upload the contents of the `dist` folder to your production web server (e.g., `https://www.halobridge.ai/word-addin/`).
+2. **Update Manifest**: 
+   Create a production version of `manifest.xml` where all `https://localhost:3000` URLs are replaced with your production URL.
+3. **AppSource / Admin Center**: 
+   Submit the production manifest to the Microsoft 365 Admin Center (for internal organization deployment) or the Microsoft AppSource store.
+
+> [!IMPORTANT]
+> Ensure strictly valid HTTPS certificates are used in production. Office will block any non-secure or invalidly signed task pane content.
 
 ## Troubleshooting
 - **Cannot resolve './src'**: This typically happened before `webpack.config.js` was added. Ensure you are running commands from the `integrations/word_addin` directory.
@@ -77,6 +93,22 @@ Connected documents store a minimal metadata manifest within the Word document's
 ### Security Note
 - **No Secrets**: API tokens, passwords, and PII are never stored in the document.
 - **No Content**: The Word document does not store an audit log of past versions locally; HaloBridge remains the source of truth.
+
+## Auto-sync (Governed)
+The Word Connector supports periodic auto-sync for connected modes (**Free Connected** and **Enterprise Connected**).
+
+- **Safety First**: Auto-sync is **OFF** by default and only activates after you have manually saved the document to HaloBridge at least once. 
+- **Change Detection**: The connector extracts document content and compares it against the last synced version's hash. If no changes are detected, the sync is skipped to save resources and avoid redundant versions.
+- **Governed Versions**: Unlike standard "autosave" which might stream every keystroke, HaloBridge Auto-sync creates a new immutable version in the registry at set intervals (2, 5, or 10 minutes), preserving the governance trail.
+- **Local Mode Privacy**: Auto-sync is strictly disabled in **Local Mode**. No document data will ever leave your device automatically in this mode.
+- **Lifecycle**: The sync timer is automatically managed and will stop if you disconnect, sign out, or change to Local Mode.
+
+### How to use Auto-sync
+1. Connect to your HaloBridge instance.
+2. Select a connected mode.
+3. Save the document manually once to link it to a GalloDoc registry.
+4. Toggle **Enable Auto-sync** in the task pane.
+5. Choose your preferred interval.
 
 ## Save vs. Save As
 1. **Save to HaloBridge**:
