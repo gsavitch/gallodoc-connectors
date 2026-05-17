@@ -138,7 +138,9 @@ function hydrateUI() {
   usernameInput.value = currentSettings.username || "";
 
   const autoSyncInterval = document.getElementById("autoSyncInterval") as HTMLSelectElement;
-  if (autoSyncInterval) autoSyncInterval.value = currentSettings.autoSyncIntervalMinutes.toString();
+  if (autoSyncInterval) {
+    autoSyncInterval.value = String(currentSettings.autoSyncIntervalMinutes ?? 5);
+  }
 
   document.getElementById("passwordFields")?.classList.toggle("hidden", currentSettings.authType !== "password");
   document.getElementById("tokenFields")?.classList.toggle("hidden", currentSettings.authType !== "token");
