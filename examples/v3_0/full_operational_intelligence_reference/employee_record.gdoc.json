@@ -1,0 +1,15 @@
+{
+  "gallodoc_schema": "gallodoc-core/v3",
+  "document_id": "emp_007",
+  "document_name": "Employee Record - Jane Doe",
+  "connector_lineage": {
+    "source_app": "workday_connector",
+    "ingested_at": "2026-05-10T14:30:00Z"
+  },
+  "gallounits": [
+    { "type": "person", "value": "Jane Doe", "role": "employee" },
+    { "type": "department", "value": "Finance", "role": "org_unit" }
+  ],
+  "semantic_intent": "hr_data_governance",
+  "embedding_profile_refs": ["emb_profile_hr_v3"]
+}
