@@ -16,6 +16,7 @@ let currentManifest: GalloDocManifest | null = null;
 
 let currentMode = ConnectorMode.Local;
 let lastResult: any = null;
+let autoSyncTimer: number | null = null;
 
 Office.onReady((info: any) => {
   if (info.host === Office.HostType.Word) {
@@ -49,6 +50,7 @@ async function initializeTaskPane() {
   modeSelector.addEventListener("change", (e) => {
     currentMode = (e.target as HTMLSelectElement).value as ConnectorMode;
     updateUIForMode();
+    updateUIForAutoSync();
   });
 
   authModeSelect.addEventListener("change", (e) => {
@@ -69,8 +71,15 @@ async function initializeTaskPane() {
   btnSaveAs.addEventListener("click", () => handleAction("save_as"));
   btnAction.addEventListener("click", () => handleAction("save"));
 
+  const toggleAutoSync = document.getElementById("toggleAutoSync") as HTMLButtonElement;
+  const autoSyncInterval = document.getElementById("autoSyncInterval") as HTMLSelectElement;
+
+  toggleAutoSync.addEventListener("click", handleToggleAutoSync);
+  autoSyncInterval.addEventListener("change", handleAutoSyncIntervalChange);
+
   updateUIForMode();
   updateUIForConnection();
+  updateUIForAutoSync();
   await refreshManifest();
 }
 
@@ -86,17 +95,34 @@ function updateUIForManifest() {
   const stReview = document.getElementById("stReview") as HTMLElement;
   const stLastSync = document.getElementById("stLastSync") as HTMLElement;
   const btnSaveAs = document.getElementById("btnSaveAs") as HTMLButtonElement;
+  const badgeSync = document.getElementById("badgeSync") as HTMLElement;
+  const btnOpenHB = document.getElementById("btnOpenHB") as HTMLButtonElement;
+  const docTitleInput = document.getElementById("docTitle") as HTMLInputElement;
 
   if (currentManifest) {
     docStatusPanel.classList.remove("hidden");
     stDocId.innerText = currentManifest.mvp_document_id;
     stVersion.innerText = `#${currentManifest.latest_version_number}`;
     stReview.innerText = currentManifest.review_status;
-    stLastSync.innerText = new Date(currentManifest.last_synced_at).toLocaleString();
+    stLastSync.innerText = `Last sync: ${new Date(currentManifest.last_synced_at).toLocaleString()}`;
     btnSaveAs.classList.remove("hidden");
+    badgeSync.classList.remove("hidden");
+
+    if (currentManifest.document_name && docTitleInput && !docTitleInput.value) {
+      docTitleInput.value = currentManifest.document_name;
+    }
+
+    // Handle Open in HaloBridge button
+    if (currentManifest.word_control_url) {
+      btnOpenHB.classList.remove("hidden");
+      btnOpenHB.onclick = () => window.open(currentManifest!.word_control_url!, "_blank");
+    } else {
+      btnOpenHB.classList.add("hidden");
+    }
   } else {
     docStatusPanel.classList.add("hidden");
     btnSaveAs.classList.add("hidden");
+    badgeSync.classList.add("hidden");
   }
 }
 
@@ -111,12 +137,19 @@ function hydrateUI() {
   apiTokenInput.value = currentSettings.token || "";
   usernameInput.value = currentSettings.username || "";
 
+  const autoSyncInterval = document.getElementById("autoSyncInterval") as HTMLSelectElement;
+  if (autoSyncInterval) autoSyncInterval.value = currentSettings.autoSyncIntervalMinutes.toString();
+
   document.getElementById("passwordFields")?.classList.toggle("hidden", currentSettings.authType !== "password");
   document.getElementById("tokenFields")?.classList.toggle("hidden", currentSettings.authType !== "token");
 
   if (currentSettings.connected && currentSettings.baseUrl) {
     hbClient.setConfiguration(currentSettings.baseUrl, currentSettings.token, currentSettings.tokenType || "Token");
   }
+
+  // Set initial mode from selector
+  const modeSelector = document.getElementById("modeSelector") as HTMLSelectElement;
+  currentMode = modeSelector.value as ConnectorMode;
 }
 
 async function handleTestConnection() {
@@ -199,16 +232,29 @@ function updateUIForConnection() {
   const connectedState = document.getElementById("connectedState") as HTMLDivElement;
   const connectedUser = document.getElementById("connectedUser") as HTMLParagraphElement;
   const connectedUrl = document.getElementById("connectedUrl") as HTMLParagraphElement;
+  const badgeConn = document.getElementById("badgeConn") as HTMLElement;
 
   if (currentSettings.connected) {
     loginForm.classList.add("hidden");
     connectedState.classList.remove("hidden");
-    connectedUser.innerText = currentSettings.username || "Connected";
+    connectedUser.innerText = currentSettings.username || "Authenticated";
     connectedUrl.innerText = currentSettings.baseUrl;
+    
+    if (badgeConn) {
+      badgeConn.innerText = "Connected";
+      badgeConn.className = "px-2 py-0.5 text-[9px] font-bold uppercase bg-green-100 text-green-700";
+    }
+    
     updateUIForMode(); 
   } else {
     loginForm.classList.remove("hidden");
     connectedState.classList.add("hidden");
+    
+    if (badgeConn) {
+      badgeConn.innerText = "Offline";
+      badgeConn.className = "px-2 py-0.5 text-[9px] font-bold uppercase bg-red-100 text-red-700";
+    }
+    
     updateUIForMode();
   }
 }
@@ -225,26 +271,148 @@ async function handleDisconnect() {
   };
   await saveConnectorSettings(currentSettings);
   hbClient.setConfiguration("", null, "Token");
+  stopAutoSyncTimer();
   updateUIForConnection();
+  updateUIForAutoSync();
   updateStatus("IDLE", "Disconnected from HaloBridge.");
+}
+
+function updateUIForAutoSync() {
+  const toggleAutoSync = document.getElementById("toggleAutoSync") as HTMLButtonElement;
+  const toggleKnob = document.getElementById("toggleKnob") as HTMLDivElement;
+  const badgeAutoSync = document.getElementById("badgeAutoSync") as HTMLElement;
+  const autoSyncStatus = document.getElementById("autoSyncStatus") as HTMLElement;
+
+  if (currentSettings.autoSyncEnabled) {
+    toggleAutoSync.className = "w-10 h-5 bg-green-500 rounded-full relative transition-colors focus:outline-none";
+    toggleKnob.className = "absolute right-1 top-1 w-3 h-3 bg-white rounded-full transition-transform";
+    badgeAutoSync.innerText = "ACTIVE";
+    badgeAutoSync.className = "px-2 py-0.5 text-[9px] font-bold uppercase bg-green-100 text-green-700";
+    
+    if (!currentManifest) {
+      autoSyncStatus.innerText = "Save once to HaloBridge to enable.";
+    } else {
+      autoSyncStatus.innerText = "Syncing periodically if changes detected.";
+    }
+  } else {
+    toggleAutoSync.className = "w-10 h-5 bg-gray-300 rounded-full relative transition-colors focus:outline-none";
+    toggleKnob.className = "absolute left-1 top-1 w-3 h-3 bg-white rounded-full transition-transform";
+    badgeAutoSync.innerText = "OFF";
+    badgeAutoSync.className = "px-2 py-0.5 text-[9px] font-bold uppercase bg-gray-100 text-gray-500";
+    autoSyncStatus.innerText = "Auto-sync disabled.";
+  }
+
+  // Manage timer state
+  if (currentSettings.autoSyncEnabled && currentSettings.connected && currentMode !== ConnectorMode.Local && currentManifest) {
+    startAutoSyncTimer();
+  } else {
+    stopAutoSyncTimer();
+  }
+}
+
+async function handleToggleAutoSync() {
+  currentSettings.autoSyncEnabled = !currentSettings.autoSyncEnabled;
+  await saveConnectorSettings(currentSettings);
+  updateUIForAutoSync();
+}
+
+async function handleAutoSyncIntervalChange(e: Event) {
+  const val = parseInt((e.target as HTMLSelectElement).value);
+  currentSettings.autoSyncIntervalMinutes = val;
+  await saveConnectorSettings(currentSettings);
+  
+  if (currentSettings.autoSyncEnabled) {
+    startAutoSyncTimer(); // Restart with new interval
+  }
+}
+
+function startAutoSyncTimer() {
+  stopAutoSyncTimer();
+  
+  const ms = currentSettings.autoSyncIntervalMinutes * 60 * 1000;
+  console.log(`[AutoSync] Starting timer for ${currentSettings.autoSyncIntervalMinutes} minutes.`);
+  
+  autoSyncTimer = window.setInterval(performAutoSync, ms);
+}
+
+function stopAutoSyncTimer() {
+  if (autoSyncTimer !== null) {
+    console.log(`[AutoSync] Stopping timer.`);
+    window.clearInterval(autoSyncTimer);
+    autoSyncTimer = null;
+  }
+}
+
+async function performAutoSync() {
+  if (!currentSettings.autoSyncEnabled || !currentSettings.connected || currentMode === ConnectorMode.Local || !currentManifest) {
+    stopAutoSyncTimer();
+    return;
+  }
+
+  const autoSyncStatus = document.getElementById("autoSyncStatus") as HTMLElement;
+  autoSyncStatus.innerText = "Checking for changes...";
+  console.log("[AutoSync] Triggered periodic check.");
+
+  try {
+    await Word.run(async (context) => {
+      const body = context.document.body;
+      body.load("text");
+      const ooxmlResult = body.getOoxml();
+      await context.sync();
+
+      const documentText = body.text || "";
+      const ooxmlContent = ooxmlResult.value || "";
+      const sourceHash = SHA256(ooxmlContent || documentText).toString();
+
+      if (sourceHash === currentManifest?.last_source_hash) {
+        console.log("[AutoSync] No changes detected. Skipping.");
+        autoSyncStatus.innerText = `Last check: ${new Date().toLocaleTimeString()} (No changes)`;
+        return;
+      }
+
+      console.log("[AutoSync] Changes detected. Syncing version...");
+      autoSyncStatus.innerText = "Syncing new version...";
+      
+      // Perform the save
+      await handleAction("save");
+      
+      autoSyncStatus.innerText = `Last auto-sync: ${new Date().toLocaleTimeString()}`;
+    });
+  } catch (err) {
+    console.error("[AutoSync] Error during auto-sync:", err);
+    autoSyncStatus.innerText = "Auto-sync failed. See console.";
+  }
 }
 
 function updateUIForMode() {
   const config = MODE_CONFIG[currentMode];
   const btnAction = document.getElementById("btnAction") as HTMLButtonElement;
   const modeDescription = document.getElementById("modeDescription") as HTMLParagraphElement;
+  const badgeMode = document.getElementById("badgeMode") as HTMLElement;
   
-  if (btnAction) btnAction.innerText = config.buttonText;
+  if (badgeMode) {
+    badgeMode.innerText = currentMode === ConnectorMode.Local ? "Local" : "Cloud";
+    badgeMode.className = `px-2 py-0.5 text-[9px] font-bold uppercase ${currentMode === ConnectorMode.Local ? "bg-gray-200 text-gray-700" : "bg-blue-100 text-blue-700"}`;
+  }
+
+  if (btnAction) {
+    if (currentMode === ConnectorMode.Local) {
+        btnAction.innerText = "Create Local GalloDoc";
+    } else {
+        btnAction.innerText = currentManifest ? "Save Version to HaloBridge" : "Save to HaloBridge";
+    }
+  }
+
   if (modeDescription) modeDescription.innerText = config.description;
   
   if (config.requiresLogin) {
     if (currentSettings.connected) {
-      updateStatus("READY", `Syncing to ${currentSettings.baseUrl}`);
+      updateStatus("READY", `Target: ${currentSettings.baseUrl}`);
     } else {
-      updateStatus("DISCONNECTED", "Configure connection to use cloud sync.");
+      updateStatus("AUTH", "Authentication required for Cloud Sync.");
     }
   } else {
-    updateStatus("IDLE", "Local mode active. No data will be uploaded.");
+    updateStatus("IDLE", "Local mode: No document data will leave your device.");
   }
 }
 
@@ -292,7 +460,30 @@ async function handleAction(action: "save" | "save_as" = "save") {
       const documentText = body.text || "";
       const ooxmlContent = ooxmlResult.value || "";
 
-      const docName = Office.context.document.url ? Office.context.document.url.split('/').pop() || "Document.docx" : "Unsaved Document";
+      // Safe Document Naming Logic
+      const getSafeDocumentName = () => {
+        const docTitleInput = document.getElementById("docTitle") as HTMLInputElement;
+        if (docTitleInput && docTitleInput.value.trim()) {
+          return docTitleInput.value.trim();
+        }
+
+        const rawUrl = Office.context.document.url;
+        if (!rawUrl) return `Word GalloDoc - ${new Date().toLocaleDateString()}`;
+
+        // Strip path and get filename
+        const fileName = rawUrl.split(/[/\\]/).pop() || "Document.docx";
+        const isTemp = fileName.toLowerCase().includes("word add-in") || 
+                       rawUrl.toLowerCase().includes("appdata") || 
+                       rawUrl.toLowerCase().includes("temp");
+
+        if (isTemp || fileName === "Document.docx") {
+          return `Word GalloDoc - ${new Date().toLocaleDateString()}`;
+        }
+
+        return fileName;
+      };
+
+      const docName = getSafeDocumentName();
       const sourceHash = SHA256(ooxmlContent || documentText).toString();
 
       if (currentMode === ConnectorMode.Local) {
@@ -312,17 +503,19 @@ async function handleAction(action: "save" | "save_as" = "save") {
           source_document_id: (action === "save_as") ? currentManifest?.mvp_document_id : undefined,
           metadata: {
             office_version: Office.context.diagnostics.version,
-            connector_manifest: currentManifest
+            connector_manifest: currentManifest,
+            original_path: Office.context.document.url // Preserve original path in metadata
           }
         });
 
         // Update local manifest
-        const newManifest = buildManifestFromSaveResponse(lastResult, sourceHash, currentManifest);
+        const newManifest = buildManifestFromSaveResponse(lastResult, sourceHash, currentManifest, docName);
         const success = await writeGalloDocManifest(newManifest);
         
         if (success) {
           updateStatus("SYNCED", `Version ${lastResult.version_number} saved.`);
           await refreshManifest();
+          updateUIForAutoSync(); // Refresh auto-sync state in case it was waiting for first save
         } else {
           updateStatus("WARNING", "Cloud saved, but local manifest failed.");
         }
@@ -350,14 +543,18 @@ function updateStatus(status: string, message: string) {
   if (statusMessage) statusMessage.innerText = message;
 
   const colors: Record<string, string> = {
-    IDLE: "text-gray-600",
-    PROCESSING: "text-blue-600",
-    UPLOADING: "text-yellow-600",
-    SUCCESS: "text-green-600",
-    SYNCED: "text-green-600",
-    ERROR: "text-red-600"
+    IDLE: "bg-gray-100 text-gray-600",
+    READY: "bg-green-100 text-green-700",
+    PROCESSING: "bg-blue-100 text-blue-700",
+    UPLOADING: "bg-yellow-100 text-yellow-700",
+    SUCCESS: "bg-green-100 text-green-700",
+    SYNCED: "bg-green-100 text-green-700",
+    ERROR: "bg-red-100 text-red-700",
+    AUTH: "bg-orange-100 text-orange-700"
   };
-  if (connectionStatus) connectionStatus.className = `text-[10px] font-mono ${colors[status] || "text-gray-600"}`;
+  if (connectionStatus) {
+    connectionStatus.className = `text-[9px] font-mono px-1 ${colors[status] || "bg-gray-200 text-gray-700"}`;
+  }
 }
 
 function showLastResult() {
