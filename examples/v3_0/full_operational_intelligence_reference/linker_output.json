@@ -1,0 +1,12 @@
+{
+  "linker_run_id": "link_run_abc",
+  "candidates": [
+    {
+      "source_doc_id": "inv_88291",
+      "target_doc_id": "emp_007",
+      "relationship_type": "invoice_to_employee_approver",
+      "confidence": 0.92,
+      "status": "suggested"
+    }
+  ]
+}
