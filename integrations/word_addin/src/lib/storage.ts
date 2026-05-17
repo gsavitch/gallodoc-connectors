@@ -8,6 +8,8 @@ export interface ConnectorSettings {
   tokenType: string | null;
   username: string | null;
   connected: boolean;
+  autoSyncEnabled: boolean;
+  autoSyncIntervalMinutes: number;
 }
 
 const DEFAULT_SETTINGS: ConnectorSettings = {
@@ -16,7 +18,9 @@ const DEFAULT_SETTINGS: ConnectorSettings = {
   token: null,
   tokenType: "Token",
   username: null,
-  connected: false
+  connected: false,
+  autoSyncEnabled: false,
+  autoSyncIntervalMinutes: 5
 };
 
 const STORAGE_KEY = "halobridge_connector_settings";
