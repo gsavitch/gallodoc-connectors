@@ -442,8 +442,8 @@ async function handleAction(action: "save" | "save_as" = "save") {
   }
 
   if (action === "save_as" && !currentManifest) {
-    updateStatus("ERROR", "Unlinked document. Save to HaloBridge first.");
-    return;
+    // If not linked yet, Save As behaves like a normal initial Save
+    console.log("[Diagnostic] Save As requested on unlinked document. Defaulting to initial save path.");
   }
 
   updateStatus("PROCESSING", "Reading document...");
@@ -526,6 +526,7 @@ async function handleAction(action: "save" | "save_as" = "save") {
       }
     });
   } catch (error: any) {
+    console.error("[Diagnostic] handleAction caught error:", error);
     if (error.message === "AUTH_EXPIRED") {
       updateStatus("ERROR", "Session expired.");
       handleDisconnect();
