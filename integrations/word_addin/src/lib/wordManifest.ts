@@ -71,15 +71,15 @@ export function buildManifestFromSaveResponse(
 ): GalloDocManifest {
   return {
     gallodoc_schema: "gallodoc.word_manifest.v1",
-    mvp_document_id: response.document_id,
+    mvp_document_id: response.document_id || response.gallodoc_id || existingManifest?.mvp_document_id,
     document_name: documentName || response.document_name || existingManifest?.document_name,
     latest_version_id: response.version_id,
     latest_version_number: response.version_number,
-    word_control_url: response.processing_url,
-    last_synced_at: new Date().toISOString(),
+    word_control_url: response.processing_url || response.result_url || response.word_control_url,
+    last_synced_at: response.last_sync || response.created_at || new Date().toISOString(),
     last_source_hash: sourceHash,
-    review_status: existingManifest?.review_status || "draft",
-    himc_approved_by: existingManifest?.himc_approved_by || null,
-    himc_approved_at: existingManifest?.himc_approved_at || null
+    review_status: response.review_status || response.processing_status || existingManifest?.review_status || "draft",
+    himc_approved_by: response.approved_by || existingManifest?.himc_approved_by || null,
+    himc_approved_at: response.approved_at || existingManifest?.himc_approved_at || null
   };
 }
