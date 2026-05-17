@@ -59,7 +59,14 @@ app.use(cors({
 // In a real app, use Firebase or SQL
 const documents: any[] = [];
 const versions: any[] = [];
+const relationships: any[] = [];
+const lifecycleStages: any[] = [];
 const tokens: Record<string, any> = {}; // token -> { user, tenant, entitlements }
+
+import { WordConnectorIdentityService } from "./src/services/wordConnectorIdentityService";
+import { WordConnectorSyncPayload } from "./src/types/wordConnector";
+
+const wordIdentityService = new WordConnectorIdentityService(documents, versions, relationships, lifecycleStages);
 
 // Mock User for Dev
 const MOCK_USER = {
@@ -190,6 +197,62 @@ const WordSaveSchema = z.object({
   source_app: z.string().default('microsoft_word'),
   source_connector: z.string().default('halobridge_word_addin'),
   tier_scope: z.enum(['limited', 'full']).optional(),
+});
+
+const WordSyncSchema = z.object({
+  tenant_id: z.string(),
+  event_type: z.enum(['save', 'save_as', 'rename', 'open', 'manual_sync']),
+  current_filename: z.string(),
+  previous_filename: z.string().optional(),
+  word_file_identity: z.string(),
+  previous_word_file_identity: z.string().optional(),
+  embedded_halobridge_doc_id: z.string().optional(),
+  embedded_parent_doc_id: z.string().optional(),
+  file_hash: z.string(),
+  content_hash: z.string(),
+  metadata: z.record(z.string(), z.any()).optional().default({}),
+});
+
+// Word Connector Sync Endpoint
+app.post('/api/word/connector/sync/', async (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || (!authHeader.startsWith('Bearer ') && !authHeader.startsWith('Token '))) {
+    return res.status(401).json({ error: "not_authenticated", message: "Bearer or Token required." });
+  }
+
+  const token = authHeader.split(' ')[1];
+  const authSession = tokens[token];
+
+  if (!authSession) {
+    return res.status(401).json({ error: "not_authenticated", message: "Invalid session." });
+  }
+
+  try {
+    const data = WordSyncSchema.parse(req.body);
+    
+    // Safety: ensure tenant_id matches session
+    if (data.tenant_id !== authSession.tenant.id) {
+      return res.status(403).json({ error: "unauthorized", message: "Tenant mismatch." });
+    }
+
+    const payload: WordConnectorSyncPayload = {
+      ...data,
+      user_id: authSession.user.id
+    };
+
+    const result = wordIdentityService.resolveWordDocumentIdentity(payload);
+    res.status(200).json(result);
+
+  } catch (error: any) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: "validation_error", issues: error.issues });
+    }
+    if (error.message.startsWith("UNAUTHORIZED_ACCESS")) {
+      return res.status(403).json({ error: "unauthorized", message: error.message });
+    }
+    console.error('Sync Error:', error);
+    res.status(500).json({ error: "internal_error", message: error.message || "Failed to sync document." });
+  }
 });
 
 // Word Connector Endpoint
