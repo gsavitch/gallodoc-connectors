@@ -2,6 +2,27 @@
 
 This add-in provides a 3-tier bridge between Microsoft Word and the GalloDoc ecosystem.
 
+## Quick Start (Windows)
+
+From the repository root, you can use the following PowerShell scripts to automate the developer workflow:
+
+**Start the Word Connector:**
+```powershell
+.\scripts\start-word-connector.ps1
+```
+*Handles: dependency installation, cert setup, building, starting dev server, and sideloading into Word.*
+
+**Troubleshooting Port 3000:**
+If port 3000 is stuck or in use:
+```powershell
+.\scripts\start-word-connector.ps1 -ForceKillPort3000
+```
+
+**Stop the Word Connector:**
+```powershell
+.\scripts\stop-word-connector.ps1
+```
+
 ## Installation & Setup
 
 For a streamlined setup on Windows, use the provided PowerShell installer:
