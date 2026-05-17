@@ -127,13 +127,23 @@ export class HaloBridgeClient {
   }
 
   async saveWordDocument(payload: {
-    mode: ConnectorMode;
-    document_name: string;
-    document_text: string;
-    ooxml?: string;
-    save_action?: "save" | "save_as";
-    document_id?: string;
+    save_action: "create" | "save" | "save_as";
+    document_title: string;
+    mvp_document_id?: string;
+    previous_mvp_document_id?: string;
+    previous_gallodoc_id?: string;
     source_document_id?: string;
+    manifest?: any;
+    word_ooxml: string;
+    text: string;
+    source_hash: string;
+    timestamp?: string;
+    review_context?: any;
+    ai_context?: any;
+    connector: {
+      name: string;
+      version: string;
+    };
     metadata?: any;
   }) {
     if (!this.baseUrl || !this.token) {
@@ -143,14 +153,20 @@ export class HaloBridgeClient {
     const endpoint = `${this.baseUrl}/api/word/gallodoc/save/`;
     console.debug(`[Diagnostic] Save request to: ${endpoint}`);
 
+    // If there is no specific document_id but we have mvp_document_id in payload, use it
+    const data = {
+      ...payload,
+      document_id: payload.mvp_document_id
+    };
+
     try {
-      const response = await axios.post(endpoint, payload, {
+      const response = await axios.post(endpoint, data, {
         headers: {
           'Authorization': `${this.tokenType} ${this.token}`,
           'Content-Type': 'application/json',
           'Accept': 'application/json'
         },
-        timeout: 45000 
+        timeout: 60000 // Increased timeout for heavy OOXML processing
       });
       return response.data;
     } catch (error: any) {
