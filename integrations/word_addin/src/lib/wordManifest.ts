@@ -1,9 +1,7 @@
 
-import { WordConnectorMetadata } from "../../../../src/types/wordConnector";
-
 /* global Word */
 
-export interface GalloDocManifest extends Partial<WordConnectorMetadata> {
+export interface GalloDocManifest {
   schema: "halobridge.word_manifest.v1";
   halobridge_doc_id: string | null;
   mvp_document_id: string | null;
@@ -24,10 +22,14 @@ export interface GalloDocManifest extends Partial<WordConnectorMetadata> {
   source_gallodoc_id: string | null;
   last_source_hash: string | null;
   last_synced_at: string | null;
-  _source?: string;
+  _source: string | null;
 }
 
 const MANIFEST_KEY = "gallodoc_manifest";
+
+function nullIfMissing(value: string | null | undefined): string | null {
+  return value ?? null;
+}
 
 const FLAT_METADATA_MAP = {
   "HaloBridgeDocumentId": "halobridge_doc_id",
@@ -39,6 +41,32 @@ const FLAT_METADATA_MAP = {
   "HaloBridgeReviewStatus": "review_status",
   "HaloBridgeApprovalStatus": "approval_status"
 };
+
+export function normalizeManifest(raw: any): GalloDocManifest {
+  return {
+    schema: "halobridge.word_manifest.v1",
+    halobridge_doc_id: nullIfMissing(raw.halobridge_doc_id || raw.mvp_document_id),
+    mvp_document_id: nullIfMissing(raw.mvp_document_id || raw.halobridge_doc_id),
+    gallodoc_id: nullIfMissing(raw.gallodoc_id),
+    latest_version_id: nullIfMissing(raw.latest_version_id || raw.version_id),
+    latest_version_number: raw.latest_version_number || raw.version_number || null,
+    review_status: nullIfMissing(raw.review_status || "draft"),
+    approval_status: nullIfMissing(raw.approval_status || "pending"),
+    verifyiq_status: nullIfMissing(raw.verifyiq_status || "pending"),
+    himc_status: nullIfMissing(raw.himc_status || "pending"),
+    release_ready: raw.release_ready ?? false,
+    ai_assistance_status: nullIfMissing(raw.ai_assistance_status || "unknown"),
+    ai_signal_confidence: nullIfMissing(raw.ai_signal_confidence || "none"),
+    human_review_required: raw.human_review_required ?? true,
+    word_control_url: nullIfMissing(raw.word_control_url || raw.canonical_workspace_url),
+    canonical_workspace_url: nullIfMissing(raw.canonical_workspace_url || raw.word_control_url),
+    source_document_id: nullIfMissing(raw.source_document_id || raw.halobridge_parent_doc_id),
+    source_gallodoc_id: nullIfMissing(raw.source_gallodoc_id),
+    last_source_hash: nullIfMissing(raw.last_source_hash || raw.halobridge_file_fingerprint),
+    last_synced_at: nullIfMissing(raw.last_synced_at || raw.halobridge_last_synced_at || (raw.schema ? null : new Date().toISOString())),
+    _source: nullIfMissing(raw._source)
+  };
+}
 
 export async function readGalloDocManifest(): Promise<GalloDocManifest | null> {
   try {
@@ -58,7 +86,7 @@ export async function readGalloDocManifest(): Promise<GalloDocManifest | null> {
 
       if (!manifestProp.isNullObject && manifestProp.value) {
         try {
-          return JSON.parse(manifestProp.value);
+          return normalizeManifest(JSON.parse(manifestProp.value));
         } catch (e) {
           console.warn("Invalid manifest JSON, attempting recovery from flat metadata", e);
         }
@@ -66,7 +94,6 @@ export async function readGalloDocManifest(): Promise<GalloDocManifest | null> {
 
       // Recovery Fallback from Flat Metadata
       let recovered: any = {
-        schema: "halobridge.word_manifest.v1",
         _source: "recovered_from_flat_metadata"
       };
       let foundAny = false;
@@ -81,7 +108,7 @@ export async function readGalloDocManifest(): Promise<GalloDocManifest | null> {
 
       if (foundAny) {
         console.log("[Identity] Manifest recovered from portable flat metadata.");
-        return recovered as GalloDocManifest;
+        return normalizeManifest(recovered);
       }
 
       return null;
@@ -150,26 +177,11 @@ export function buildManifestFromSyncResponse(
   response: any,
   currentManifest: GalloDocManifest | null = null
 ): GalloDocManifest {
-  return {
-    schema: "halobridge.word_manifest.v1",
-    halobridge_doc_id: response.halobridge_doc_id || response.mvp_document_id || currentManifest?.halobridge_doc_id,
-    mvp_document_id: response.mvp_document_id || response.halobridge_doc_id || currentManifest?.mvp_document_id,
-    gallodoc_id: response.gallodoc_id || currentManifest?.gallodoc_id,
-    latest_version_id: response.version_id || response.latest_version_id || currentManifest?.latest_version_id,
-    latest_version_number: response.version_number || response.latest_version_number || currentManifest?.latest_version_number,
-    review_status: response.review_status || currentManifest?.review_status || "draft",
-    approval_status: response.approval_status || currentManifest?.approval_status || "pending",
-    verifyiq_status: response.verifyiq_status || currentManifest?.verifyiq_status || "pending",
-    himc_status: response.himc_status || currentManifest?.himc_status || "pending",
-    release_ready: response.release_ready ?? currentManifest?.release_ready ?? false,
-    ai_assistance_status: response.ai_assistance_status || currentManifest?.ai_assistance_status || "unknown",
-    ai_signal_confidence: response.ai_signal_confidence || currentManifest?.ai_signal_confidence || "none",
-    human_review_required: response.human_review_required ?? currentManifest?.human_review_required ?? true,
-    word_control_url: response.word_control_url || response.canonical_workspace_url || currentManifest?.word_control_url,
-    canonical_workspace_url: response.canonical_workspace_url || response.word_control_url || currentManifest?.canonical_workspace_url,
-    source_document_id: response.halobridge_parent_doc_id || currentManifest?.source_document_id,
-    source_gallodoc_id: currentManifest?.gallodoc_id, // lineage
-    last_source_hash: response.halobridge_file_fingerprint || currentManifest?.last_source_hash,
-    last_synced_at: response.halobridge_last_synced_at || new Date().toISOString()
+  const merged = {
+    ...currentManifest,
+    ...response,
+    // Ensure nested merges and legacy names are handled by normalizeManifest
   };
+  
+  return normalizeManifest(merged);
 }
