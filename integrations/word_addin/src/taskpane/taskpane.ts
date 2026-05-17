@@ -503,8 +503,16 @@ async function handleAction(action: "save" | "save_as" = "save") {
       
       // Load review context
       const changeTracking = context.document.settings.getItemOrNullObject("ChangeTracking");
-      const comments = context.document.comments;
-      const commentCount = comments.getCount();
+      let commentCount: number | null = 0;
+      try {
+        const comments = context.document.body.comments;
+        comments.load("items");
+        await context.sync();
+        commentCount = comments.items ? comments.items.length : null;
+      } catch (e) {
+        console.warn("Comments API not supported or failed", e);
+        commentCount = null;
+      }
       
       // Load document properties for protection
       // (Note: full protection API might vary by platform, we use a simple check)
@@ -513,7 +521,7 @@ async function handleAction(action: "save" | "save_as" = "save") {
 
       const documentText = body.text || "";
       const ooxmlContent = ooxmlResult.value || "";
-      const hasComments = commentCount.value > 0;
+      const hasComments = (commentCount !== null && commentCount > 0);
       
       // Check if track changes are currently ON
       // In Word.Document, there isn't a direct "hasTrackedChanges" boolean without iterating.
@@ -523,7 +531,7 @@ async function handleAction(action: "save" | "save_as" = "save") {
       const reviewContext = {
         tracked_changes_detected: null, // Default
         comments_detected: hasComments,
-        unresolved_comments_count: commentCount.value,
+        unresolved_comments_count: commentCount,
         document_protection: "none",
         office_host: "Word" as const,
         capture_method: "word_addin" as const
