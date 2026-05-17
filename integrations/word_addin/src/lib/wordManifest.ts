@@ -1,34 +1,45 @@
+
+import { WordConnectorMetadata } from "../../../../src/types/wordConnector";
+
 /* global Word */
 
-export interface GalloDocManifest {
-  gallodoc_schema: string;
-  mvp_document_id: string;
-  document_name?: string;
-  latest_version_id: string;
-  latest_version_number: number;
-  word_control_url?: string;
-  last_synced_at: string;
-  last_source_hash: string;
-  review_status: string;
-  himc_approved_by: string | null;
-  himc_approved_at: string | null;
-}
+export type GalloDocManifest = WordConnectorMetadata & {
+  // We can still keep some transient UI state here if needed, 
+  // but for persistence we follow the minimum metadata rule
+};
 
-const MANIFEST_KEY = "gallodoc_manifest";
+const METADATA_KEYS: (keyof WordConnectorMetadata)[] = [
+  'halobridge_doc_id',
+  'halobridge_tenant_id',
+  'halobridge_source_app',
+  'halobridge_original_filename',
+  'halobridge_last_synced_filename',
+  'halobridge_file_fingerprint',
+  'halobridge_version_number',
+  'halobridge_created_at',
+  'halobridge_last_synced_at',
+  'halobridge_parent_doc_id',
+  'halobridge_lineage_reason'
+];
 
-export async function readGalloDocManifest(): Promise<GalloDocManifest | null> {
+export async function readGalloDocManifest(): Promise<Partial<WordConnectorMetadata> | null> {
   try {
     return await Word.run(async (context) => {
       const customProps = context.document.properties.customProperties;
-      const manifestProp = customProps.getItemOrNullObject(MANIFEST_KEY);
-      manifestProp.load("value");
-      await context.sync();
+      const result: any = {};
+      let found = false;
 
-      if (manifestProp.isNullObject || !manifestProp.value) {
-        return null;
+      for (const key of METADATA_KEYS) {
+        const prop = customProps.getItemOrNullObject(key);
+        prop.load("value");
+        await context.sync();
+        if (!prop.isNullObject && prop.value !== undefined) {
+          result[key] = prop.value;
+          found = true;
+        }
       }
 
-      return JSON.parse(manifestProp.value);
+      return found ? result : null;
     });
   } catch (error) {
     console.error("Failed to read GalloDoc manifest:", error);
@@ -36,11 +47,16 @@ export async function readGalloDocManifest(): Promise<GalloDocManifest | null> {
   }
 }
 
-export async function writeGalloDocManifest(manifest: GalloDocManifest): Promise<boolean> {
+export async function writeGalloDocManifest(metadata: Partial<WordConnectorMetadata>): Promise<boolean> {
   try {
     await Word.run(async (context) => {
       const customProps = context.document.properties.customProperties;
-      customProps.add(MANIFEST_KEY, JSON.stringify(manifest));
+      
+      for (const [key, value] of Object.entries(metadata)) {
+        if (value !== undefined && value !== null) {
+          customProps.add(key, value.toString());
+        }
+      }
       await context.sync();
     });
     return true;
@@ -54,8 +70,10 @@ export async function clearGalloDocManifest(): Promise<void> {
   try {
     await Word.run(async (context) => {
       const customProps = context.document.properties.customProperties;
-      const prop = customProps.getItemOrNullObject(MANIFEST_KEY);
-      prop.delete();
+      for (const key of METADATA_KEYS) {
+        const prop = customProps.getItemOrNullObject(key);
+        prop.delete();
+      }
       await context.sync();
     });
   } catch (error) {
@@ -63,23 +81,8 @@ export async function clearGalloDocManifest(): Promise<void> {
   }
 }
 
-export function buildManifestFromSaveResponse(
-  response: any, 
-  sourceHash: string, 
-  existingManifest?: GalloDocManifest | null,
-  documentName?: string
-): GalloDocManifest {
-  return {
-    gallodoc_schema: "gallodoc.word_manifest.v1",
-    mvp_document_id: response.document_id || response.gallodoc_id || existingManifest?.mvp_document_id,
-    document_name: documentName || response.document_name || existingManifest?.document_name,
-    latest_version_id: response.version_id,
-    latest_version_number: response.version_number,
-    word_control_url: response.processing_url || response.result_url || response.word_control_url,
-    last_synced_at: response.last_sync || response.created_at || new Date().toISOString(),
-    last_source_hash: sourceHash,
-    review_status: response.review_status || response.processing_status || existingManifest?.review_status || "draft",
-    himc_approved_by: response.approved_by || existingManifest?.himc_approved_by || null,
-    himc_approved_at: response.approved_at || existingManifest?.himc_approved_at || null
-  };
+export function buildManifestFromSyncResponse(
+  response: any
+): Partial<WordConnectorMetadata> {
+  return response.write_back_metadata || {};
 }
