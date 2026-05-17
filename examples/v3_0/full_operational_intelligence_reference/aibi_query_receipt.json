@@ -1,0 +1,12 @@
+{
+  "query_intent": "Who approved the Acme Corp invoice?",
+  "planner_receipt": {
+    "plan_id": "plan_772",
+    "steps": [
+      { "action": "resolve_entity", "params": { "name": "Acme Corp" } },
+      { "action": "find_relationship", "params": { "type": "invoice_to_employee_approver" } }
+    ],
+    "executor_status": "complete",
+    "result_id": "emp_007"
+  }
+}
