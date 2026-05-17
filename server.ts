@@ -18,7 +18,42 @@ const PORT = 3000;
 
 app.use(express.json({ limit: '10mb' }));
 app.use(cookieParser());
-app.use(cors());
+
+// CORS Configuration
+const allowedOrigins = process.env.HALOBRIDGE_WORD_CONNECTOR_ALLOWED_ORIGINS 
+  ? process.env.HALOBRIDGE_WORD_CONNECTOR_ALLOWED_ORIGINS.split(',').map(o => o.trim())
+  : ["https://localhost:3000", "https://127.0.0.1:3000"];
+
+// Add the app's own URL if configured
+if (process.env.APP_URL) {
+  const appUrl = process.env.APP_URL.replace(/\/$/, "");
+  if (!allowedOrigins.includes(appUrl)) {
+    allowedOrigins.push(appUrl);
+  }
+}
+
+app.use(cors({
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps, curl, or same-origin)
+    if (!origin) return callback(null, true);
+    
+    // Check against allowedOrigins list
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      return callback(null, true);
+    }
+    
+    // Heuristic: Allow origins from the same platform (AI Studio / Cloud Run) for development
+    if (origin.endsWith('.run.app') || origin.startsWith('http://localhost:') || origin.startsWith('https://localhost:')) {
+      return callback(null, true);
+    }
+
+    console.warn(`[CORS] Blocked request from unauthorized origin: ${origin}`);
+    callback(new Error('Not allowed by CORS'));
+  },
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+  credentials: true
+}));
 
 // Mock In-Memory Database for MVP
 // In a real app, use Firebase or SQL
