@@ -2,7 +2,8 @@ import { ConnectorMode, MODE_CONFIG } from "../lib/modeConfig";
 import { generateLocalGalloDoc } from "../lib/gallodocLocal";
 import { HaloBridgeClient } from "../lib/halobridgeClient";
 import { getConnectorSettings, saveConnectorSettings, clearConnectorSettings, ConnectorSettings } from "../lib/storage";
-import { GalloDocManifest, readGalloDocManifest, writeGalloDocManifest, buildManifestFromSaveResponse } from "../lib/wordManifest";
+import { readGalloDocManifest, writeGalloDocManifest, clearGalloDocManifest, buildManifestFromSyncResponse } from "../lib/wordManifest";
+import { WordConnectorMetadata } from "../../../../src/types/wordConnector";
 import SHA256 from "crypto-js/sha256";
 import "./taskpane.css";
 
@@ -12,7 +13,7 @@ declare const Office: any;
 
 const hbClient = new HaloBridgeClient();
 let currentSettings: ConnectorSettings;
-let currentManifest: GalloDocManifest | null = null;
+let currentManifest: Partial<WordConnectorMetadata> | null = null;
 
 let currentMode = ConnectorMode.Local;
 let lastResult: any = null;
@@ -106,17 +107,17 @@ function updateUIForManifest() {
   const btnOpenHB = document.getElementById("btnOpenHB") as HTMLButtonElement;
   const docTitleInput = document.getElementById("docTitle") as HTMLInputElement;
 
-  if (currentManifest) {
+  if (currentManifest && currentManifest.halobridge_doc_id) {
     docStatusPanel.classList.remove("hidden");
-    stDocId.innerText = currentManifest.mvp_document_id;
-    stVersion.innerText = `#${currentManifest.latest_version_number}`;
-    stReview.innerText = currentManifest.review_status;
-    stLastSync.innerText = `Last sync: ${new Date(currentManifest.last_synced_at).toLocaleString()}`;
+    stDocId.innerText = currentManifest.halobridge_doc_id;
+    stVersion.innerText = `#${currentManifest.halobridge_version_number || 1}`;
+    stReview.innerText = "Managed"; // We no longer store review status in Word
+    stLastSync.innerText = `Last sync: ${currentManifest.halobridge_last_synced_at ? new Date(currentManifest.halobridge_last_synced_at).toLocaleString() : 'N/A'}`;
     btnSaveAs.classList.remove("hidden");
     badgeSync.classList.remove("hidden");
 
-    if (currentManifest.document_name && docTitleInput && !docTitleInput.value) {
-      docTitleInput.value = currentManifest.document_name;
+    if (currentManifest.halobridge_last_synced_filename && docTitleInput && !docTitleInput.value) {
+      docTitleInput.value = currentManifest.halobridge_last_synced_filename;
     }
 
     // Handle Open in HaloBridge button
@@ -396,7 +397,7 @@ async function performAutoSync() {
       const ooxmlContent = ooxmlResult.value || "";
       const sourceHash = SHA256(ooxmlContent || documentText).toString();
 
-      if (sourceHash === currentManifest?.last_source_hash) {
+      if (sourceHash === currentManifest?.halobridge_file_fingerprint) {
         console.log("[AutoSync] No changes detected. Skipping.");
         autoSyncStatus.innerText = `Last check: ${new Date().toLocaleTimeString()} (No changes)`;
         return;
@@ -517,40 +518,62 @@ async function handleAction(action: "save" | "save_as" = "save") {
       };
 
       const docName = getSafeDocumentName();
-      const sourceHash = SHA256(ooxmlContent || documentText).toString();
+      const ooxmlContent = ooxmlResult.value || "";
+      const contentHash = SHA256(ooxmlContent || documentText).toString();
+      const fileId = Office.context.document.url || "unsaved_session_" + Date.now();
 
       if (currentMode === ConnectorMode.Local) {
         lastResult = await generateLocalGalloDoc(documentText, !!ooxmlContent, docName);
         updateStatus("SUCCESS", "Local GalloDoc generated.");
         showLastResult();
       } else {
-        updateStatus("UPLOADING", action === "save_as" ? "Creating new branch..." : "Syncing to HaloBridge...");
+        updateStatus("UPLOADING", action === "save_as" ? "Creating new branch..." : "Syncing identity...");
         
-        lastResult = await hbClient.saveWordDocument({
+        // Identity Sync Request
+        const syncResponse = await hbClient.syncDocument({
+          tenant_id: settings.tenant?.id || "tenant_999", // Fallback for mock
+          event_type: action,
+          current_filename: docName,
+          previous_filename: currentManifest?.halobridge_last_synced_filename,
+          word_file_identity: fileId,
+          previous_word_file_identity: (currentManifest as any)?.word_file_identity, // We might need to store this or infer it
+          embedded_halobridge_doc_id: currentManifest?.halobridge_doc_id,
+          embedded_parent_doc_id: currentManifest?.halobridge_parent_doc_id,
+          file_hash: contentHash, // Using content hash as file fingerprint for now
+          content_hash: contentHash,
+          metadata: currentManifest || {}
+        });
+
+        lastResult = syncResponse;
+
+        // Perform the full save/intake if needed
+        updateStatus("UPLOADING", "Uploading document content...");
+        const saveResponse = await hbClient.saveWordDocument({
           mode: currentMode,
           document_name: docName,
           document_text: documentText,
           ooxml: ooxmlContent,
           save_action: action,
-          document_id: (action === "save") ? currentManifest?.mvp_document_id : undefined,
-          source_document_id: (action === "save_as") ? currentManifest?.mvp_document_id : undefined,
+          document_id: syncResponse.halobridge_doc_id,
           metadata: {
-            office_version: Office.context.diagnostics.version,
-            connector_manifest: currentManifest,
-            original_path: Office.context.document.url // Preserve original path in metadata
+            ...syncResponse.write_back_metadata,
+            original_path: Office.context.document.url
           }
         });
 
-        // Update local manifest
-        const newManifest = buildManifestFromSaveResponse(lastResult, sourceHash, currentManifest, docName);
+        // Update local manifest from sync result
+        const newManifest = buildManifestFromSyncResponse(syncResponse);
+        // Persist file identity for rename detection
+        (newManifest as any).word_file_identity = fileId; 
+        
         const success = await writeGalloDocManifest(newManifest);
         
         if (success) {
-          updateStatus("SYNCED", `Version ${lastResult.version_number} saved.`);
+          updateStatus("SYNCED", `${action === 'save_as' ? 'Branch' : 'Version'} synced.`);
           await refreshManifest();
-          updateUIForAutoSync(); // Refresh auto-sync state in case it was waiting for first save
+          updateUIForAutoSync();
         } else {
-          updateStatus("WARNING", "Cloud saved, but local manifest failed.");
+          updateStatus("WARNING", "Cloud synced, but local manifest failed.");
         }
 
         const btnAction = document.getElementById("btnAction") as HTMLButtonElement;
