@@ -51,8 +51,8 @@ export class WordConnectorIdentityService {
     // Identify current document or create new one
     let currentDoc = docId ? this.documents.find(d => d.id === docId && d.tenant_id === tenant_id) : null;
 
-    // 1. If no embedded_halobridge_doc_id: Create new
-    if (!docId || !currentDoc) {
+    // 1. If create or no embedded_halobridge_doc_id: Create new
+    if (event_type === 'create' || !docId || !currentDoc) {
       action = 'created';
       currentDoc = this.createNewDocument(tenant_id, current_filename, 'word_document_created', 'normal_save');
       docId = currentDoc.id;
