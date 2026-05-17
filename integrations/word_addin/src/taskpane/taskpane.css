@@ -1,14 +1,63 @@
-/* Placeholder for taskpane styles - the HTML uses inline Tailwind-like classes but can be extended here */
+/* GalloDoc Unified Theme */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=JetBrains+Mono:wght@400;700&display=swap');
+
 body {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    font-family: 'Inter', sans-serif;
+    color: #141414;
+    background-color: #E4E3E0;
 }
 
+#container {
+    max-width: 100%;
+}
+
+.font-mono {
+    font-family: 'JetBrains Mono', monospace;
+}
+
+/* Custom Scrollbar for Results */
 #resultOutput::-webkit-scrollbar {
     width: 4px;
 }
 
 #resultOutput::-webkit-scrollbar-thumb {
-    background: #E4E3E0;
-    opacity: 0.2;
+    background: #555;
+    border-radius: 2px;
+}
+
+/* Animations */
+@keyframes pulse-soft {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+.animate-pulse {
+    animation: pulse-soft 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Badge Styles */
+.badge {
+    @apply px-2 py-0.5 text-[9px] font-bold uppercase rounded-full;
+}
+
+/* Card Hover Effects */
+section {
+    transition: transform 0.2s ease, shadow 0.2s ease;
+}
+
+section:hover {
+    transform: translate(-1px, -1px);
+    box-shadow: 3px 3px 0px 0px rgba(0,0,0,1);
+}
+
+/* Input Focus */
+input:focus, select:focus {
+    box-shadow: 0 0 0 2px rgba(0,0,0,0.05);
+}
+
+/* Button Active State */
+button:active {
+    transform: translateY(1px);
 }
