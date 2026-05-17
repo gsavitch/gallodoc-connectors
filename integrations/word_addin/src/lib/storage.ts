@@ -53,7 +53,12 @@ export async function getConnectorSettings(): Promise<ConnectorSettings> {
 
   if (!data) return { ...DEFAULT_SETTINGS };
   try {
-    return JSON.parse(data);
+    const parsed = JSON.parse(data);
+    // Normalize to ensure all fields exist (defensive against old versions)
+    return {
+      ...DEFAULT_SETTINGS,
+      ...parsed
+    };
   } catch (e) {
     return { ...DEFAULT_SETTINGS };
   }
