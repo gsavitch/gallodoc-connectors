@@ -159,8 +159,8 @@ async function handleConnect() {
         baseUrl,
         authType: "password",
         token: res.token,
-        tokenType: res.tokenType,
-        username: res.user.display_name,
+        tokenType: res.tokenType || "Token",
+        username: res.user.display_name || res.user.username || username,
         connected: true
       };
       
@@ -179,7 +179,7 @@ async function handleConnect() {
         authType: "token",
         token: token,
         tokenType: defaultType,
-        username: "API Client",
+        username: "api-token",
         connected: true
       };
 
