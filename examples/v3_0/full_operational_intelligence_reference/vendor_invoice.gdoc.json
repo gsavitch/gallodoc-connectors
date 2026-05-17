@@ -1,0 +1,15 @@
+{
+  "gallodoc_schema": "gallodoc-core/v3",
+  "document_id": "inv_88291",
+  "document_name": "Vendor Invoice - Acme Corp",
+  "connector_lineage": {
+    "source_app": "microsoft_word",
+    "ingested_at": "2026-05-17T02:00:00Z"
+  },
+  "gallounits": [
+    { "type": "currency", "value": 1500, "unit": "USD" },
+    { "type": "entity", "value": "Acme Corp", "role": "vendor" }
+  ],
+  "semantic_intent": "accounts_payable_process",
+  "embedding_profile_refs": ["emb_profile_default_v3"]
+}
