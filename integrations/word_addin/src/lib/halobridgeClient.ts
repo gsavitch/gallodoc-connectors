@@ -27,30 +27,81 @@ export class HaloBridgeClient {
 
   async testConnection(baseUrl: string): Promise<{ status: "ok" | "unauthorized" | "unreachable", message: string }> {
     const cleanUrl = baseUrl.replace(/\/$/, "");
+    const endpoint = `${cleanUrl}/api/health/`;
+    
+    console.debug(`[Diagnostic] Testing connection to: ${endpoint}`);
+    
+    // 1. Try with Axios first (GET, no custom headers to avoid CORS preflight issues)
     try {
-      console.log(`[Diagnostic] Testing connection to: ${cleanUrl}/api/health/`);
-      const response = await axios.get(`${cleanUrl}/api/health/`, { timeout: 10000 });
-      if (response.status === 200) return { status: "ok", message: "Server Reachable" };
-      return { status: "unreachable", message: `Server returned ${response.status}` };
+      const response = await axios.get(endpoint, { 
+        timeout: 8000,
+        headers: {
+          'Accept': 'application/json'
+        },
+        // Avoid sending any authorization header for simple health test
+        transformRequest: [(data, headers) => {
+          delete headers['Authorization'];
+          return data;
+        }]
+      });
+
+      if (response.status === 200) {
+        return { status: "ok", message: "Server reachable" };
+      }
+      return { status: "unreachable", message: `Server status: ${response.status}` };
     } catch (error: any) {
-      if (error.response?.status === 401) return { status: "unauthorized", message: "Unauthorized" };
-      const detail = error.response?.data?.message || error.response?.data?.error || error.message;
-      console.error('[Diagnostic] Connection Test Failed:', error);
-      return { status: "unreachable", message: `Connection failed: ${detail || "Network error"}` };
+      console.debug(`[Diagnostic] Axios test failed for ${endpoint}. Code: ${error.code}, Message: ${error.message}`);
+      
+      // 2. Fallback to simple fetch (CORS mode) if axios fails with generic Network Error
+      try {
+        console.debug(`[Diagnostic] Attempting fetch fallback for ${endpoint}`);
+        const fetchResponse = await fetch(endpoint, { 
+          method: "GET", 
+          mode: "cors",
+          headers: { 'Accept': 'application/json' }
+        });
+        
+        if (fetchResponse.ok) {
+          return { status: "ok", message: "Server reachable (via fetch)" };
+        }
+        
+        const status = fetchResponse.status;
+        if (status === 401 || status === 403) return { status: "unauthorized", message: "Unauthorized/Forbidden" };
+        return { status: "unreachable", message: `Server unreachable (Status ${status})` };
+      } catch (fetchError: any) {
+        console.debug(`[Diagnostic] Fetch fallback also failed.`, fetchError);
+        
+        // Final combined error message
+        const isNetworkErr = !error.response;
+        const msg = isNetworkErr ? "Network/CORS error: request blocked" : (error.response?.data?.message || error.message);
+        return { 
+          status: "unreachable", 
+          message: `${msg}${error.code ? ` (${error.code})` : ""}` 
+        };
+      }
     }
   }
 
   async login(baseUrl: string, username: string, password: string) {
     const cleanUrl = baseUrl.replace(/\/$/, "");
+    const endpoint = `${cleanUrl}/api/word/auth/login/`;
+    
+    console.debug(`[Diagnostic] Login attempt to: ${endpoint}`);
+    
     try {
-      const response = await axios.post(`${cleanUrl}/api/word/auth/login/`, {
+      const response = await axios.post(endpoint, {
         username,
         password
       }, {
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json'
-        }
+        },
+        // Explicitly don't send auth header for login
+        transformRequest: [(data, headers) => {
+          delete headers['Authorization'];
+          return JSON.stringify(data);
+        }]
       });
 
       const { access_token, token_type, user, tenant } = response.data;
@@ -69,10 +120,8 @@ export class HaloBridgeClient {
         tenant: tenant ? { name: tenant.name } : undefined
       };
     } catch (error: any) {
-      const status = error.response?.status;
-      const detail = error.response?.data?.detail || error.response?.data?.error || error.message;
-      console.error('Login Error:', error.response?.data || error.message);
-      throw new Error(`Login failed${status ? ` (${status})` : ""}: ${detail}`);
+      this.handleDetailedError('Login', error);
+      throw error;
     }
   }
 
@@ -91,35 +140,55 @@ export class HaloBridgeClient {
     }
 
     const endpoint = `${this.baseUrl}/api/word/gallodoc/save/`;
-    console.log(`[Diagnostic] Syncing to: ${endpoint}`);
-    console.log(`[Diagnostic] Auth Header: ${this.tokenType} [REDACTED]`);
+    console.debug(`[Diagnostic] Save request to: ${endpoint}`);
 
     try {
       const response = await axios.post(endpoint, payload, {
         headers: {
           'Authorization': `${this.tokenType} ${this.token}`,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
         },
-        timeout: 30000 // Extended timeout for document processing
+        timeout: 45000 
       });
       return response.data;
     } catch (error: any) {
-      if (error.response?.status === 401) {
-        throw new Error("AUTH_EXPIRED");
-      }
-      const status = error.response?.status;
-      const detail = error.response?.data?.message || error.response?.data?.error || error.message;
-      console.error('[Diagnostic] HaloBridge Sync Error:', {
-        status,
-        data: error.response?.data,
-        message: error.message
-      });
-      
-      if (!status) {
-        throw new Error(`Network failure: ${error.message}. Check if ${this.baseUrl} is reachable and allows CORS from Office.`);
-      }
+      this.handleDetailedError('Save', error);
+      throw error;
+    }
+  }
 
-      throw new Error(`Sync failed (${status}): ${detail}`);
+  private handleDetailedError(context: string, error: any) {
+    const status = error.response?.status;
+    const data = error.response?.data;
+    const msg = error.message;
+    const code = error.code;
+    
+    console.error(`[Diagnostic] ${context} Error:`, {
+      code,
+      message: msg,
+      status,
+      responseData: data,
+      requestMade: !!error.request,
+      responseReceived: !!error.response
+    });
+
+    if (!error.response) {
+      if (error.code === 'ECONNABORTED') {
+        error.message = "Request timed out. Server is taking too long.";
+      } else {
+        error.message = `Network/CORS error: Request blocked before response. Status code: ${code || 'Unknown'}`;
+      }
+    } else {
+      const serverMsg = data?.message || data?.error || data?.detail;
+      error.message = `${context} failed${status ? ` (${status})` : ""}: ${serverMsg || msg}`;
+    }
+    
+    if (status === 401) {
+      // Specialized message for expired tokens in Save mode
+      if (context === 'Save') {
+        error.message = "AUTH_EXPIRED";
+      }
     }
   }
 }
