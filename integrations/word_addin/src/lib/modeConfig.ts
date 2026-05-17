@@ -17,7 +17,7 @@ export const MODE_CONFIG = {
   },
   [ConnectorMode.Enterprise]: {
     buttonText: "Save to HaloBridge (Full)",
-    description: "Enterprise mode: Fullgovernance, VerifyIQ & HIM-C review pipeline.",
+    description: "Enterprise mode: Full governance, VerifyIQ & HIM-C review pipeline.",
     requiresLogin: true
   }
 };
