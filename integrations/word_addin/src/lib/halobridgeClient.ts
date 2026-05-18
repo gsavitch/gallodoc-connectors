@@ -22,14 +22,14 @@ export interface ConnectionInfo {
 export class HaloBridgeClient {
   private baseUrl: string | null = null;
   private token: string | null = null;
-  private tokenType: string = "Token";
+  private tokenType: string = "Bearer";
 
   constructor() {}
 
-  setConfiguration(baseUrl: string, token: string | null, tokenType: string = "Token") {
+  setConfiguration(baseUrl: string, token: string | null, tokenType: string = "Bearer") {
     this.baseUrl = baseUrl.replace(/\/$/, "");
     this.token = token;
-    this.tokenType = tokenType || "Token";
+    this.tokenType = tokenType || "Bearer";
   }
 
   private joinUrl(base: string, path: string): string {
@@ -118,7 +118,7 @@ export class HaloBridgeClient {
       const { access_token, token_type, user, tenant } = response.data;
       
       this.token = access_token;
-      this.tokenType = token_type || "Token";
+      this.tokenType = token_type || "Bearer";
       this.baseUrl = baseUrl.replace(/\/$/, "");
 
       return {
@@ -260,10 +260,11 @@ export class HaloBridgeClient {
       error.message = `${context} failed${status ? ` (${status})` : ""}: ${serverMsg || msg}`;
     }
     
-    if (status === 401) {
-      // Specialized message for expired tokens in Save mode
+    if (status === 401 || status === 403) {
+      error.message = "Authentication failed. Please disconnect and reconnect.";
+      // Specialized internal code for handleAction to recognize
       if (context === 'Save') {
-        error.message = "AUTH_EXPIRED";
+        error.code = "AUTH_EXPIRED";
       }
     }
   }
