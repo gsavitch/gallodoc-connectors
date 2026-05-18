@@ -34,6 +34,12 @@ export function isDebugEnabled(): boolean {
   }
 }
 
+export function headerToString(value: unknown): string | undefined {
+  if (value == null) return undefined;
+  if (Array.isArray(value)) return value.join(", ");
+  return String(value);
+}
+
 export function redactToken(token: string | null): { tokenPresent: boolean; tokenPrefix?: string } {
   if (!token) return { tokenPresent: false };
   return {
@@ -80,7 +86,7 @@ export function getDebugSummary(currentSettings: any, hbClient: any) {
       message: lastError.message,
       code: lastError.code,
       status: lastError.response?.status,
-      contentType: lastError.response?.headers?.['content-type']
+      contentType: headerToString(lastError.response?.headers?.['content-type'])
     } : null
   };
 }
