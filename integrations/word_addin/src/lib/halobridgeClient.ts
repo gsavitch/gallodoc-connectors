@@ -1,6 +1,12 @@
 import axios from 'axios';
 import { ConnectorMode } from './modeConfig';
 import { WordConnectorSyncPayload, WordConnectorSyncResponse } from '../../../../src/types/wordConnector';
+import { debugApiEvent, redactToken, setLastError } from './debugLog';
+
+export const WORD_SAVE_ENDPOINT = "/api/word/documents/save/";
+export const WORD_LOGIN_ENDPOINT = "/api/word/auth/login/";
+export const WORD_SYNC_ENDPOINT = "/api/word/connector/sync/";
+export const HEALTH_ENDPOINT = "/api/health/";
 
 export interface ConnectionInfo {
   baseUrl: string;
@@ -26,9 +32,14 @@ export class HaloBridgeClient {
     this.tokenType = tokenType || "Token";
   }
 
+  private joinUrl(base: string, path: string): string {
+    const cleanBase = base.replace(/\/$/, "");
+    const cleanPath = path.startsWith("/") ? path : `/${path}`;
+    return `${cleanBase}${cleanPath}`;
+  }
+
   async testConnection(baseUrl: string): Promise<{ status: "ok" | "unauthorized" | "unreachable", message: string }> {
-    const cleanUrl = baseUrl.replace(/\/$/, "");
-    const endpoint = `${cleanUrl}/api/health/`;
+    const endpoint = this.joinUrl(baseUrl, HEALTH_ENDPOINT);
     
     console.debug(`[Diagnostic] Testing connection to: ${endpoint}`);
     
@@ -84,8 +95,7 @@ export class HaloBridgeClient {
   }
 
   async login(baseUrl: string, username: string, password: string) {
-    const cleanUrl = baseUrl.replace(/\/$/, "");
-    const endpoint = `${cleanUrl}/api/word/auth/login/`;
+    const endpoint = this.joinUrl(baseUrl, WORD_LOGIN_ENDPOINT);
     
     console.debug(`[Diagnostic] Login attempt to: ${endpoint}`);
     
@@ -109,7 +119,7 @@ export class HaloBridgeClient {
       
       this.token = access_token;
       this.tokenType = token_type || "Token";
-      this.baseUrl = cleanUrl;
+      this.baseUrl = baseUrl.replace(/\/$/, "");
 
       return {
         token: access_token,
@@ -150,8 +160,22 @@ export class HaloBridgeClient {
       throw new Error("Add-in is not connected to a HaloBridge instance.");
     }
 
-    const endpoint = `${this.baseUrl}/api/word/gallodoc/save/`;
-    console.debug(`[Diagnostic] Save request to: ${endpoint}`);
+    const endpoint = this.joinUrl(this.baseUrl, WORD_SAVE_ENDPOINT);
+    
+    const tokenInfo = redactToken(this.token);
+    debugApiEvent({
+      eventName: "SaveRequest",
+      baseUrl: this.baseUrl,
+      endpoint: WORD_SAVE_ENDPOINT,
+      method: "POST",
+      tokenPresent: tokenInfo.tokenPresent,
+      tokenType: this.tokenType,
+      payloadKeys: Object.keys(payload),
+      payloadSizeApprox: JSON.stringify(payload).length,
+      saveAction: payload.save_action,
+      mvpDocumentIdPresent: !!payload.mvp_document_id,
+      previousDocumentIdPresent: !!payload.previous_mvp_document_id,
+    });
 
     // If there is no specific document_id but we have mvp_document_id in payload, use it
     const data = {
@@ -168,8 +192,28 @@ export class HaloBridgeClient {
         },
         timeout: 60000 // Increased timeout for heavy OOXML processing
       });
+      
+      debugApiEvent({
+        eventName: "SaveResponse",
+        status: response.status,
+        responseContentType: response.headers['content-type'],
+        tokenPresent: tokenInfo.tokenPresent,
+        mvpDocumentIdPresent: !!payload.mvp_document_id,
+        previousDocumentIdPresent: !!payload.previous_mvp_document_id,
+      });
+
       return response.data;
     } catch (error: any) {
+      setLastError(error);
+      debugApiEvent({
+        eventName: "SaveError",
+        errorCode: error.code,
+        errorMessage: error.message,
+        status: error.response?.status,
+        tokenPresent: tokenInfo.tokenPresent,
+        mvpDocumentIdPresent: !!payload.mvp_document_id,
+        previousDocumentIdPresent: !!payload.previous_mvp_document_id,
+      });
       this.handleDetailedError('Save', error);
       throw error;
     }
@@ -180,8 +224,7 @@ export class HaloBridgeClient {
       throw new Error("Add-in is not connected to a HaloBridge instance.");
     }
 
-    const endpoint = `${this.baseUrl}/api/word/connector/sync/`;
-    console.debug(`[Diagnostic] Identity sync request to: ${endpoint}`);
+    const endpoint = this.joinUrl(this.baseUrl, WORD_SYNC_ENDPOINT);
 
     try {
       const response = await axios.post(endpoint, payload, {
@@ -205,20 +248,11 @@ export class HaloBridgeClient {
     const msg = error.message;
     const code = error.code;
     
-    console.error(`[Diagnostic] ${context} Error:`, {
-      code,
-      message: msg,
-      status,
-      responseData: data,
-      requestMade: !!error.request,
-      responseReceived: !!error.response
-    });
-
     if (!error.response) {
       if (error.code === 'ECONNABORTED') {
         error.message = "Request timed out. Server is taking too long.";
       } else {
-        error.message = `Network/CORS error: Request blocked before response. Status code: ${code || 'Unknown'}`;
+        error.message = `Save blocked before backend response. Likely CORS/preflight or missing save route. Error code: ${code || 'Unknown'}. Use Copy Debug Info.`;
       }
     } else {
       const serverMsg = data?.message || data?.error || data?.detail;
