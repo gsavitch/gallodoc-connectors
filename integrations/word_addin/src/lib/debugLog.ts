@@ -75,7 +75,7 @@ export function getDebugSummary(currentSettings: any, hbClient: any) {
     baseUrl: currentSettings.baseUrl,
     healthEndpoint: "/api/health/",
     loginEndpoint: "/api/word/auth/login/",
-    saveEndpoint: "/api/word/gallodoc/save/",
+    saveEndpoint: "/api/word/documents/save/",
     connected: currentSettings.connected,
     tokenPresent: tokenInfo.tokenPresent,
     tokenPrefix: tokenInfo.tokenPrefix,
