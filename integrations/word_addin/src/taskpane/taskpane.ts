@@ -213,7 +213,7 @@ function hydrateUI() {
   if (tFields) tFields.classList.toggle("hidden", currentSettings.authType !== "token");
 
   if (currentSettings.connected && currentSettings.baseUrl) {
-    hbClient.setConfiguration(currentSettings.baseUrl, currentSettings.token, currentSettings.tokenType || "Token");
+    hbClient.setConfiguration(currentSettings.baseUrl, currentSettings.token, currentSettings.tokenType || "Bearer");
   }
 
   const modeSelector = document.getElementById("modeSelector") as HTMLSelectElement;
@@ -262,7 +262,7 @@ async function handleConnect() {
         baseUrl,
         authType: "password",
         token: res.token,
-        tokenType: res.tokenType || "Token",
+        tokenType: res.tokenType || "Bearer",
         username: res.user.display_name || res.user.username || username,
         connected: !!res.token,
         autoSyncEnabled: currentSettings?.autoSyncEnabled ?? false,
@@ -274,7 +274,7 @@ async function handleConnect() {
       const token = (document.getElementById("apiToken") as HTMLInputElement).value;
       if (!token) throw new Error("API Token required");
 
-      const defaultType = "Token";
+      const defaultType = "Bearer";
       hbClient.setConfiguration(baseUrl, token, defaultType);
       
       const test = await hbClient.testConnection(baseUrl);
@@ -295,7 +295,7 @@ async function handleConnect() {
     await saveConnectorSettings(currentSettings);
     
     if (currentSettings.token) {
-        hbClient.setConfiguration(currentSettings.baseUrl, currentSettings.token, currentSettings.tokenType || "Token");
+        hbClient.setConfiguration(currentSettings.baseUrl, currentSettings.token, currentSettings.tokenType || "Bearer");
     }
 
     updateStatus("SUCCESS", `Connected to ${baseUrl}`);
@@ -343,14 +343,14 @@ async function handleDisconnect() {
     baseUrl: oldUrl,
     authType: currentSettings.authType,
     token: null,
-    tokenType: "Token",
+    tokenType: "Bearer",
     username: null,
     connected: false,
     autoSyncEnabled: currentSettings?.autoSyncEnabled ?? false,
     autoSyncIntervalMinutes: currentSettings?.autoSyncIntervalMinutes ?? 5
   };
   await saveConnectorSettings(currentSettings);
-  hbClient.setConfiguration("", null, "Token");
+  hbClient.setConfiguration("", null, "Bearer");
   stopAutoSyncTimer();
   updateUIForConnection();
   updateUIForAutoSync();
@@ -660,8 +660,8 @@ async function handleAction(action: "save" | "save_as" = "save") {
     });
   } catch (error: any) {
     console.error("[Diagnostic] handleAction caught error:", error);
-    if (error.message === "AUTH_EXPIRED") {
-      updateStatus("ERROR", "Session expired.");
+    if (error.code === "AUTH_EXPIRED" || error.message?.includes("disconnect and reconnect")) {
+      updateStatus("ERROR", error.message || "Session expired.");
       handleDisconnect();
     } else {
       updateStatus("ERROR", error.message || "Operation failed.");
