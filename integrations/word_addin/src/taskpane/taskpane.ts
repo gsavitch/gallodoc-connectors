@@ -4,6 +4,7 @@ import { generateLocalGalloDoc } from "../lib/gallodocLocal";
 import { HaloBridgeClient } from "../lib/halobridgeClient";
 import { getConnectorSettings, saveConnectorSettings, clearConnectorSettings, ConnectorSettings } from "../lib/storage";
 import { GalloDocManifest, readGalloDocManifest, writeGalloDocManifest, clearGalloDocManifest, buildManifestFromSyncResponse } from "../lib/wordManifest";
+import { getDebugSummary, isDebugEnabled } from "../lib/debugLog";
 import SHA256 from "crypto-js/sha256";
 import "./taskpane.css";
 
@@ -69,6 +70,15 @@ async function initializeTaskPane() {
   btnConnect.addEventListener("click", handleConnect);
   btnTest.addEventListener("click", handleTestConnection);
   btnDisconnect.addEventListener("click", handleDisconnect);
+
+  const btnCopyDebug = document.getElementById("btnCopyDebug") as HTMLButtonElement;
+  if (btnCopyDebug) {
+    btnCopyDebug.addEventListener("click", handleCopyDebugInfo);
+    // Hide if not dev and not explicit flag
+    if (!isDebugEnabled()) {
+        btnCopyDebug.classList.add("hidden");
+    }
+  }
 
   const btnSaveAs = document.getElementById("btnSaveAs") as HTMLButtonElement;
   const btnToggleAutoSyncSection = document.getElementById("btnToggleAutoSyncSection") as HTMLButtonElement;
@@ -700,4 +710,16 @@ function copyToClipboard() {
             setTimeout(() => btn.innerText = originalText, 2000);
         });
     }
+}
+
+async function handleCopyDebugInfo() {
+  const summary = getDebugSummary(currentSettings, hbClient);
+  const text = JSON.stringify(summary, null, 2);
+  
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.getElementById("btnCopyDebug") as HTMLButtonElement;
+    const originalText = btn.innerHTML;
+    btn.innerText = "COPIED!";
+    setTimeout(() => btn.innerHTML = originalText, 2000);
+  });
 }
