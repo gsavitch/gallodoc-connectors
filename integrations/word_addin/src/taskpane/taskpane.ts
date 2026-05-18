@@ -503,15 +503,25 @@ async function handleAction(action: "save" | "save_as" = "save") {
       
       // Load review context
       const changeTracking = context.document.settings.getItemOrNullObject("ChangeTracking");
-      let commentCount: number | null = 0;
+      let unresolvedCommentsCount: number | null = null;
+      let commentsDetected: boolean | null = null;
+
       try {
-        const comments = context.document.body.comments;
-        comments.load("items");
-        await context.sync();
-        commentCount = comments.items ? comments.items.length : null;
-      } catch (e) {
-        console.warn("Comments API not supported or failed", e);
-        commentCount = null;
+        const bodyAny = context.document.body as any;
+        const comments = bodyAny.comments;
+
+        if (comments && typeof comments.load === "function") {
+          comments.load("items");
+          await context.sync();
+          unresolvedCommentsCount = Array.isArray(comments.items) ? comments.items.length : null;
+          commentsDetected =
+            typeof unresolvedCommentsCount === "number"
+              ? unresolvedCommentsCount > 0
+              : null;
+        }
+      } catch {
+        unresolvedCommentsCount = null;
+        commentsDetected = null;
       }
       
       // Load document properties for protection
@@ -521,7 +531,6 @@ async function handleAction(action: "save" | "save_as" = "save") {
 
       const documentText = body.text || "";
       const ooxmlContent = ooxmlResult.value || "";
-      const hasComments = (commentCount !== null && commentCount > 0);
       
       // Check if track changes are currently ON
       // In Word.Document, there isn't a direct "hasTrackedChanges" boolean without iterating.
@@ -530,8 +539,8 @@ async function handleAction(action: "save" | "save_as" = "save") {
       
       const reviewContext = {
         tracked_changes_detected: null, // Default
-        comments_detected: hasComments,
-        unresolved_comments_count: commentCount,
+        comments_detected: commentsDetected,
+        unresolved_comments_count: unresolvedCommentsCount,
         document_protection: "none",
         office_host: "Word" as const,
         capture_method: "word_addin" as const
@@ -539,7 +548,7 @@ async function handleAction(action: "save" | "save_as" = "save") {
 
       // Heuristic AI Detection
       let aiMentionsCount = 0;
-      if (hasComments) {
+      if (commentsDetected) {
           // Note: In Word.js, we would need to load the content of each comment.
           // For now, we perform a simple check if the Word API allows searching within comments
           // or we just simulate the detection based on text patterns if we had them.
