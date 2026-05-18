@@ -16,7 +16,7 @@ const DEFAULT_SETTINGS: ConnectorSettings = {
   baseUrl: "",
   authType: "password",
   token: null,
-  tokenType: "Token",
+  tokenType: "Bearer",
   username: null,
   connected: false,
   autoSyncEnabled: false,
@@ -55,10 +55,17 @@ export async function getConnectorSettings(): Promise<ConnectorSettings> {
   try {
     const parsed = JSON.parse(data);
     // Normalize to ensure all fields exist (defensive against old versions)
-    return {
+    const settings = {
       ...DEFAULT_SETTINGS,
       ...parsed
     };
+    
+    // Explicit backward compatibility: if tokenType is missing or null, default to Bearer
+    if (!settings.tokenType) {
+      settings.tokenType = "Bearer";
+    }
+    
+    return settings;
   } catch (e) {
     return { ...DEFAULT_SETTINGS };
   }
