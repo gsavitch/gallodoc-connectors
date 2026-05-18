@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { ConnectorMode } from './modeConfig';
 import { WordConnectorSyncPayload, WordConnectorSyncResponse } from '../../../../src/types/wordConnector';
-import { debugApiEvent, redactToken, setLastError } from './debugLog';
+import { debugApiEvent, redactToken, setLastError, headerToString } from './debugLog';
 
 export const WORD_SAVE_ENDPOINT = "/api/word/documents/save/";
 export const WORD_LOGIN_ENDPOINT = "/api/word/auth/login/";
@@ -196,7 +196,7 @@ export class HaloBridgeClient {
       debugApiEvent({
         eventName: "SaveResponse",
         status: response.status,
-        responseContentType: response.headers['content-type'],
+        responseContentType: headerToString(response.headers['content-type']),
         tokenPresent: tokenInfo.tokenPresent,
         mvpDocumentIdPresent: !!payload.mvp_document_id,
         previousDocumentIdPresent: !!payload.previous_mvp_document_id,
@@ -210,6 +210,7 @@ export class HaloBridgeClient {
         errorCode: error.code,
         errorMessage: error.message,
         status: error.response?.status,
+        responseContentType: headerToString(error.response?.headers?.['content-type']),
         tokenPresent: tokenInfo.tokenPresent,
         mvpDocumentIdPresent: !!payload.mvp_document_id,
         previousDocumentIdPresent: !!payload.previous_mvp_document_id,
