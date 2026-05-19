@@ -49,12 +49,17 @@ module.exports = {
           to: ".",
           noErrorOnMissing: true,
         },
+        {
+          from: "manifest.prod.xml",
+          to: "manifest.prod.xml",
+          noErrorOnMissing: true,
+        },
       ],
     }),
   ],
   output: {
     filename: "[name].bundle.js",
-    path: path.resolve(__dirname, "dist"),
+    path: path.resolve(__dirname, "dist/word-addin"),
     clean: true,
   },
   devServer: {
