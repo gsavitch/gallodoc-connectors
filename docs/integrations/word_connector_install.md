@@ -55,3 +55,29 @@ To update the hosted version, build the project:
 
 ### Configuration
 The add-in automatically detects if it is running on `halobridge.ai` and defaults the connection URL to `https://www.halobridge.ai`.
+
+---
+
+## Validation
+
+Before publishing or after a deployment, run the production smoke test script to ensure all assets are correctly configured and reachable.
+
+### Build the production assets
+Ensure you have run the build command in the add-in directory:
+```bash
+cd integrations/word_addin
+npm run build
+```
+
+### Run the smoke test
+From the repository root, run the PowerShell script:
+
+**Pre-publish validation (local files only):**
+```powershell
+.\scripts\test-word-connector-prod.ps1
+```
+
+**Post-deploy validation (live network checks):**
+```powershell
+.\scripts\test-word-connector-prod.ps1 -Live
+```
