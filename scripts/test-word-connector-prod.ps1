@@ -91,7 +91,7 @@ if ($Live) {
                 exit 1
             }
         } catch {
-            Write-Error "Failed to reach icon $icon: $($_.Exception.Message)"
+            Write-Error "Failed to reach icon ${icon}: $($_.Exception.Message)"
             exit 1
         }
     }
