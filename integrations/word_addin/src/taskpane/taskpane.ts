@@ -40,9 +40,13 @@ async function initializeTaskPane() {
   // Load persistent settings
   currentSettings = await getConnectorSettings();
   
-  // Set default if empty and in development/AI Studio
+  // Set default if empty
   if (!currentSettings.baseUrl && typeof window !== "undefined") {
-    currentSettings.baseUrl = window.location.origin;
+    if (window.location.host === "www.halobridge.ai" || window.location.host === "halobridge.ai") {
+        currentSettings.baseUrl = "https://www.halobridge.ai";
+    } else {
+        currentSettings.baseUrl = window.location.origin;
+    }
   }
 
   // Hydrate UI from settings
