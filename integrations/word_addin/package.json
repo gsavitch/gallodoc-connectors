@@ -24,6 +24,7 @@
     "ts-loader": "^9.0.0",
     "html-loader": "^5.0.0",
     "html-webpack-plugin": "^5.0.0",
+    "copy-webpack-plugin": "^11.0.0",
     "css-loader": "^6.0.0",
     "style-loader": "^3.0.0"
   }
